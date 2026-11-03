@@ -32,6 +32,8 @@
 #include <cstring>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
+#include <cstdint>
 
 #include "RotationConventions.h"
 
@@ -112,8 +114,15 @@ struct ScanlineRenderPrivate
 
     // Shading mode for mesh geometry. 0 = Shaded (N.L diffuse + ambient,
     // using Light3D if connected), 1 = Flat (no lighting, just texture/color),
-    // 2 = Wireframe (solid white lines from triangle edges).
+    // 2 = Wireframe (solid white lines from polygon or triangle edges).
     KnobChoiceWPtr shadingMode;
+
+    // Wireframe edge source. 0 = Polygons (the mesh's own faces: quads and
+    // n-gons draw without their triangulation diagonals), 1 = Triangles
+    // (every triangle edge, the historical behaviour). Polygons falls back
+    // to triangle edges for geometry that only carries triangles
+    // (procedural primitives).
+    KnobChoiceWPtr wireframeEdges;
 
     // Global ambient fill colour added to surfaces in Shaded mode (so unlit /
     // back-facing areas aren't pure black). Multiplies the surface colour, like
@@ -245,14 +254,30 @@ ScanlineRender::initializeKnobs()
         std::vector<ChoiceOption> entries;
         entries.push_back(ChoiceOption("Shaded", "", "N.L diffuse lighting (uses Light3D if connected, else top-right default)"));
         entries.push_back(ChoiceOption("Flat", "", "No lighting — texture or per-vertex color only"));
-        entries.push_back(ChoiceOption("Wireframe", "", "Solid white edges derived from triangle indices"));
+        entries.push_back(ChoiceOption("Wireframe", "", "Solid white edges (polygon or triangle edges, see Wireframe Edges)"));
         k->populateChoices(entries);
         k->setDefaultValue(0); // Shaded
         k->setHintToolTip(tr("Mesh display mode. "
                               "Shaded: N.L diffuse lighting (uses Light3D if connected, otherwise a default top-right light). "
                               "Flat: no lighting — just texture or per-vertex color. "
-                              "Wireframe: solid white edges derived from triangle indices."));
+                              "Wireframe: solid white edges, from the mesh polygons or from its triangles "
+                              "(see Wireframe Edges)."));
         outPage->addKnob(k); _imp->shadingMode = k;
+    }
+    {
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Wireframe Edges"));
+        k->setName("wireframeEdges"); k->setAnimationEnabled(false);
+        std::vector<ChoiceOption> entries;
+        entries.push_back(ChoiceOption("Polygons", "", "Edges of the mesh's own faces: quads and n-gons keep their shape, no triangulation diagonals"));
+        entries.push_back(ChoiceOption("Triangles", "", "Every triangle edge, including the diagonals added to triangulate quads and n-gons"));
+        k->populateChoices(entries);
+        k->setDefaultValue(0); // Polygons
+        k->setHintToolTip(tr("Which edges the Wireframe shading mode draws. "
+                              "Polygons: the faces as authored in the file (quads stay quads, as in Maya or Nuke). "
+                              "Triangles: the triangulated mesh actually sent to the GPU, with the extra diagonals. "
+                              "Geometry that only carries triangles (Card3D, Cube3D, Sphere3D, Cylinder3D) "
+                              "always draws its triangle edges."));
+        outPage->addKnob(k); _imp->wireframeEdges = k;
     }
     {
         KnobColorPtr k = AppManager::createKnob<KnobColor>(this, tr("Ambient"), 3);
@@ -1654,6 +1679,12 @@ struct GeoData {
                                  //   over uvs and the render loop emits glTexCoord4f(s,t,0,w)
                                  //   so OpenGL does perspective-correct fragment-level divide.
     std::vector<int> triIndices;
+    // Source mesh (shared, not copied) for geometry read from a file or built
+    // as polygons — its faceIndices/faceCounts index into `verts`. Used only by
+    // the Wireframe shading mode in Polygons edge mode, to draw the faces'
+    // own edges instead of the triangulation. Null for triangle-only
+    // procedural primitives, which fall back to triangle edges.
+    MeshDataPtr srcMesh;
     float localMatrix[16];
     ImagePtr texImg;
 
@@ -1723,6 +1754,45 @@ fanTriangulate(const std::vector<int>& faceIndices,
             outTris.push_back(v0);
             outTris.push_back(faceIndices[offset + i]);
             outTris.push_back(faceIndices[offset + i + 1]);
+        }
+        offset += (size_t)c;
+    }
+}
+
+// Unique edges of the source polygons (index pairs), for the Wireframe
+// shading mode: a quad yields its 4 sides and none of the diagonals
+// fanTriangulate adds. Edges shared by two faces are emitted once. Indices
+// outside [0, numVerts) are skipped. Leaves outEdges empty when the mesh has
+// no face-count info (already a triangle soup) — the caller then falls back
+// to triangle edges.
+static void
+buildPolygonEdges(const std::vector<int>& faceIndices,
+                  const std::vector<int>& faceCounts,
+                  int numVerts,
+                  std::vector<int>& outEdges)
+{
+    outEdges.clear();
+    if (faceCounts.empty() || numVerts <= 0) return;
+    std::unordered_set<uint64_t> seen;
+    seen.reserve(faceIndices.size());
+    outEdges.reserve(faceIndices.size() * 2);
+
+    size_t offset = 0;
+    for (size_t f = 0; f < faceCounts.size(); ++f) {
+        const int c = faceCounts[f];
+        if (c < 2 || offset + (size_t)c > faceIndices.size()) {
+            offset += (size_t)std::max(0, c);
+            continue;
+        }
+        for (int i = 0; i < c; ++i) {
+            const int a = faceIndices[offset + i];
+            const int b = faceIndices[offset + ((i + 1) % c)];
+            if (a == b || a < 0 || b < 0 || a >= numVerts || b >= numVerts) continue;
+            const uint64_t lo = (uint64_t)(uint32_t)std::min(a, b);
+            const uint64_t hi = (uint64_t)(uint32_t)std::max(a, b);
+            if (!seen.insert((lo << 32) | hi).second) continue;
+            outEdges.push_back(a);
+            outEdges.push_back(b);
         }
         offset += (size_t)c;
     }
@@ -1950,6 +2020,7 @@ extractGeometry(EffectInstancePtr effect, double time, ViewIdx view, GeoData& ou
         out.verts = mesh->vertices;
         fanTriangulate(mesh->faceIndices, mesh->faceCounts, out.triIndices);
         const int nv = (int)(out.verts.size() / 3);
+        out.srcMesh = mesh;
 
         // Per-vertex normals via face-cross-product averaging — needed by the
         // Normal AOV (without this, the AOV NaNs out → solid white). MeshData
@@ -2315,6 +2386,7 @@ extractGeometries(EffectInstancePtr effect, double time, ViewIdx view, std::vect
             g.verts = mesh->vertices;
             fanTriangulate(mesh->faceIndices, mesh->faceCounts, g.triIndices);
             const int nv = (int)(g.verts.size() / 3);
+            g.srcMesh = mesh;
 
             // Per-vertex normals via face-cross-product averaging — needed
             // by the Normal AOV (without this, the AOV NaNs out → white).
@@ -2365,7 +2437,8 @@ renderGeoObjectGlsl(const GeoData& geo, GLuint program,
                     const float lightPos[3], const float lightColor[3],
                     float lightIntensity,
                     const float cameraPos[3],
-                    bool writeNormal, bool writeUV, bool writePref, bool writeVelocity)
+                    bool writeNormal, bool writeUV, bool writePref, bool writeVelocity,
+                    bool polygonWireEdges)
 {
     const int numVerts = (int)(geo.verts.size() / 3);
     const int numTris  = (int)(geo.triIndices.size() / 3);
@@ -2524,12 +2597,18 @@ renderGeoObjectGlsl(const GeoData& geo, GLuint program,
     glEnableVertexAttribArray(4);
     glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void*)(12 * sizeof(float)));
 
-    // Wireframe mode draws GL_LINES from edges derived from triangle indices
-    // (3 edges per triangle, including duplicates at shared edges — visually
-    // identical to a clean edge list and avoids needing edgeIndices on GeoData
-    // for the procedural primitives).
+    // Wireframe mode draws GL_LINES. Polygons edge mode uses the source faces'
+    // own edges (quads/n-gons without triangulation diagonals), built here
+    // only when needed so Shaded/Flat renders pay nothing. Otherwise — or for
+    // triangle-only geometry such as the procedural primitives, which carry
+    // no source mesh — the edges come from the triangle indices (3 per
+    // triangle, duplicates at shared edges are visually identical to a clean
+    // edge list).
     std::vector<int> wireIndices;
-    if (shadingMode == 2) {
+    if (shadingMode == 2 && polygonWireEdges && geo.srcMesh) {
+        buildPolygonEdges(geo.srcMesh->faceIndices, geo.srcMesh->faceCounts, numVerts, wireIndices);
+    }
+    if (shadingMode == 2 && wireIndices.empty()) {
         wireIndices.reserve(geo.triIndices.size() * 2);
         for (size_t t = 0; t + 2 < geo.triIndices.size(); t += 3) {
             int a = geo.triIndices[t + 0];
@@ -3118,6 +3197,7 @@ ScanlineRender::render(const RenderActionArgs& args)
     // Pull shading mode + light parameters once per render (shared by every
     // motion-blur sample and every geo object inside the loop).
     int shadingMode = _imp->shadingMode.lock() ? _imp->shadingMode.lock()->getValue() : 0;
+    const bool polygonWireEdges = _imp->wireframeEdges.lock() ? (_imp->wireframeEdges.lock()->getValue() == 0) : true;
     bool hasLight = false;
     float lightPos[3] = { 0, 0, 0 };
     float lightColor[3] = { 1, 1, 1 };
@@ -3324,7 +3404,8 @@ ScanlineRender::render(const RenderActionArgs& args)
                                 shadingMode, hasLight, lightPos, lightColor, lightIntensity,
                                 cameraPos,
                                 wantsNormalMrt, wantsUvMrt,
-                                wantsPrefMrt, wantsVelocityMrt);
+                                wantsPrefMrt, wantsVelocityMrt,
+                                polygonWireEdges);
         }
         glUseProgram(0);
         // Restore single-attachment draw buffer so particles + volumes only
