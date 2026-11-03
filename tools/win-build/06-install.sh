@@ -132,4 +132,20 @@ else
   fi
 fi
 
+# --- Modern ACES configs (ACES 2.1 / 1.3, CG + Studio) from tools/ocio-configs ---
+# The pack above only has pre-1.0 ACES; these are OpenColorIO's official built-in
+# configs, self-contained. Copied every run so an existing install gets them too.
+OCIO_EXTRA="$NATRON_ROOT/Natron/tools/ocio-configs"
+if [ -d "$OCIO_EXTRA" ]; then
+  log "OCIO configs: modern ACES (tools/ocio-configs)"
+  mkdir -p "$I/Resources/OpenColorIO-Configs"
+  for d in "$OCIO_EXTRA"/*/; do
+    [ -f "$d/config.ocio" ] || continue
+    rm -rf "$I/Resources/OpenColorIO-Configs/$(basename "$d")"
+    cp -r "$d" "$I/Resources/OpenColorIO-Configs/"
+    ok "  $(basename "$d")"
+  done
+  cp "$OCIO_EXTRA/LICENSE-OpenColorIO.txt" "$I/Licenses/OpenColorIO-configs-LICENSE.txt"
+fi
+
 ok "Phase 06 (install) complete — staged at $I"
