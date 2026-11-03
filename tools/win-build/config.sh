@@ -55,7 +55,7 @@ NIK_KIT_REF="692201dde7e891895044a7ed224ffe6e37c0c66a"
 # ---- Toolchain location ---------------------------------------------
 # MSYS2 deprecated the MINGW64 environment (2026-03) and has been removing its
 # leaf packages (pyside6, openimageio, opencolorio, ...) since 2026-10-24, so the
-# build now targets UCRT64 (MINGW64 shells are refused by lib.sh).
+# build defaults to UCRT64. An existing MINGW64 setup still works (lib.sh warns).
 MSYS2_ROOT="${MSYS2_ROOT:-/c/msys64}"
 # Chosen from MSYSTEM only (the shell's name, also shown in the prompt): the
 # MSYSTEM_PREFIX / MINGW_PACKAGE_PREFIX variables can be stale or overridden

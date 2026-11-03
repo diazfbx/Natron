@@ -9,8 +9,8 @@ die()  { printf '\033[1;31m  XX  %s\033[0m\n' "$*" >&2; exit 1; }
 require_mingw() {
   case "${MSYSTEM:-}" in
     UCRT64|CLANG64) ;;
-    MINGW64) die "This is the MINGW64 terminal: MSYS2 has removed most of its packages (pyside6, openimageio, poppler...). Close it and open \"MSYS2 UCRT64\" from the Start menu (prompt shows UCRT64)." ;;
-    *) die "Open the MSYS2 *UCRT64* terminal (prompt shows UCRT64, not MSYS) — current: ${MSYSTEM:-none}." ;;
+    MINGW64) warn "MINGW64 terminal: fine where its packages are already installed (the original setup), but MSYS2 has been removing MINGW64 packages since 2026-10-24 — on a new machine use \"MSYS2 UCRT64\"." ;;
+    *) die "Open the MSYS2 *UCRT64* (or existing MINGW64) terminal, not MSYS — current: ${MSYSTEM:-none}." ;;
   esac
   if [ "${1:-}" != "--no-gcc" ] && [ ! -x "$MINGW/bin/gcc.exe" ]; then
     die "gcc not found at $MINGW/bin — run ./00-deps.sh first (it installs the $PKG toolchain)."
