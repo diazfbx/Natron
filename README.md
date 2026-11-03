@@ -1,5 +1,35 @@
 # Natron fork — 3D / Cycles / Deep / Particles / Volumes
 
+> ### About this fork (diazfbx/Natron)
+>
+> This repository is a personal fork of **[Niik-l/Natron](https://github.com/Niik-l/Natron)**, itself a fork of **[Natron](https://github.com/NatronGitHub/Natron)**. All the credit for Natron goes to its authors — Alexandre Gauthier-Foichat, INRIA and the Natron developers — and all the credit for the 3D system, Cycles, deep compositing, particles and everything described further down this page goes to **[Niik-l](https://github.com/Niik-l)**. The rest of this README is Niik-l's, kept as is.
+>
+> **Why this fork.** I really appreciate the approach of building pipelines on standalone, open-source software instead of paying for overpriced subscriptions. Niik-l's work turns Natron into a genuinely usable tool for VFX and matchmove work, and this fork adds the few things my own pipeline needed, in the same spirit: free, open, and installable by anyone. Everything here stays under Natron's GPL-2.0 licence, and any of these changes is welcome upstream.
+>
+> **What this fork adds** (branch [`fix/wireframe-polygon-edges`](https://github.com/diazfbx/Natron/tree/fix/wireframe-polygon-edges), one commit per feature so each can be picked separately):
+>
+> | Feature | What it does |
+> |---|---|
+> | **ScanlineRender — Wireframe Edges** | New *Wireframe Edges* choice (*Polygons*, default / *Triangles*). In Wireframe shading, quads and n-gons from ReadGeo / ReadAlembicArchive are drawn with their own edges instead of the triangulation diagonals, like in Maya or Nuke. Edges are built only in Wireframe mode, so Shaded / Flat renders cost nothing extra. Procedural primitives (Card3D, Cube3D, …) still draw triangle edges. |
+> | **3DE Lens Import** (`3DE` menu) | *3DE → Import distortion (.nk)* reads the Nuke distortion nodes exported by 3DEqualizer (`LD_3DE4_Radial_Standard_Degree_4`, Anamorphic Standard Degree 4, Anamorphic Degree 6, Radial Fisheye Degree 8, Classic) and creates Natron's `LensDistortion` node with the same model, direction and values — animated curves included — wired under the selected node. A PyPlug shipped in `Plugins/PyPlugs/3DE_Lens_Import`. |
+> | **Cryptomatte node** (group *Keyer*) | A Nuke-style Cryptomatte keyer: *Layer* menu (CryptoObject / CryptoMaterial / CryptoAsset…), manifest read from the EXR header (or the `manif_file` sidecar), *Matte List* in Nuke's syntax (quoted names, `*` / `?` wildcards, `<float>` IDs), viewer picker *Add* / *Remove*, *Preview* colours, *Matte Only*, *Invert*. Implements the open [Cryptomatte specification](https://github.com/Psyop/Cryptomatte) by Psyop. |
+> | **Modern ACES configs bundled** | The official OpenColorIO ACES configs are shipped in `Resources/OpenColorIO-Configs/`: `aces_2.1_cg`, `aces_2.1_studio`, `aces_1.3_cg`, `aces_1.3_studio` (copied verbatim from OpenColorIO's built-in configs, BSD-3-Clause). Pick one in *Preferences → Color Management*; the viewer's OCIO display/view menu then offers the ACES output transforms. |
+> | **Windows build on MSYS2 UCRT64** | MSYS2 deprecated the MINGW64 environment and has been removing its packages (PySide6, OpenImageIO, OpenColorIO…) since October 2026, so `tools/win-build` failed with "target not found". The scripts and CMake files now follow the MSYS2 environment (UCRT64), install `clang` for shiboken6, and stop with a clear message in the wrong terminal. |
+>
+> **Build it** (Windows, in the *MSYS2 UCRT64* terminal, ~15 GB free on the build drive):
+>
+> ```bash
+> git clone --branch fix/wireframe-polygon-edges https://github.com/diazfbx/Natron.git
+> cd Natron/tools/win-build
+> bash build-all.sh
+> ```
+>
+> The result is a self-contained `Natron-install/` folder (run `App/Natron.exe`), which can be zipped and shared. See [tools/win-build/README.md](tools/win-build/README.md) and [BUILDING.md](BUILDING.md).
+>
+> **Status.** These additions are recent: the Cryptomatte node and the UCRT64 build changes have not been through a full release cycle yet. Please report problems in this fork's issues, and anything that also affects Niik-l's build in [Niik-l's issues](https://github.com/Niik-l/Natron/issues).
+
+---
+
 [![GPL2 License](http://img.shields.io/:license-gpl2-blue.svg?)](LICENSE.txt)
 
 A fork of [Natron](https://github.com/NatronGitHub/Natron), the open-source node-based compositor, that adds a 3D system, the Cycles renderer + Cycles deep, a deep-compositing pipeline, a particle system, volumes, and an early 3D camera tracker — **69 new built-in nodes** — on a Qt6 / Python 3.14 / OpenGL 4.3 base. Windows and Linux builds.
