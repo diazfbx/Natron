@@ -263,26 +263,26 @@ ScanlineRender::initializeKnobs()
         std::vector<ChoiceOption> entries;
         entries.push_back(ChoiceOption("Shaded", "", "N.L diffuse lighting (uses Light3D if connected, else top-right default)"));
         entries.push_back(ChoiceOption("Flat", "", "No lighting — texture or per-vertex color only"));
-        entries.push_back(ChoiceOption("Wireframe", "", "Solid white edges (polygon or triangle edges, see Wireframe Edges)"));
+        entries.push_back(ChoiceOption("Wireframe", "", "Lines along the mesh edges (quads or triangles, see Wireframe Mesh)"));
         k->populateChoices(entries);
         k->setDefaultValue(0); // Shaded
         k->setHintToolTip(tr("Mesh display mode. "
                               "Shaded: N.L diffuse lighting (uses Light3D if connected, otherwise a default top-right light). "
                               "Flat: no lighting — just texture or per-vertex color. "
-                              "Wireframe: solid white edges, from the mesh polygons or from its triangles "
-                              "(see Wireframe Edges)."));
+                              "Wireframe: lines along the edges of the mesh quads or of its triangles, in the Wireframe Color "
+                              "(see Wireframe Mesh)."));
         outPage->addKnob(k); _imp->shadingMode = k;
     }
     {
-        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Wireframe Edges"));
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Wireframe Mesh"));
         k->setName("wireframeEdges"); k->setAnimationEnabled(false);
         std::vector<ChoiceOption> entries;
-        entries.push_back(ChoiceOption("Polygons", "", "Edges of the mesh's own faces: quads and n-gons keep their shape, no triangulation diagonals"));
+        entries.push_back(ChoiceOption("Quads", "", "The mesh's own faces: quads (and n-gons) keep their shape, no triangulation diagonals"));
         entries.push_back(ChoiceOption("Triangles", "", "Every triangle edge, including the diagonals added to triangulate quads and n-gons"));
         k->populateChoices(entries);
-        k->setDefaultValue(0); // Polygons
-        k->setHintToolTip(tr("Which edges the Wireframe shading mode draws. "
-                              "Polygons: the faces as authored in the file (quads stay quads, as in Maya or Nuke). "
+        k->setDefaultValue(0); // Quads
+        k->setHintToolTip(tr("Which mesh the Wireframe shading mode draws. "
+                              "Quads: the faces as authored in the file (quads stay quads, n-gons stay n-gons, as in Maya or Nuke). "
                               "Triangles: the triangulated mesh actually sent to the GPU, with the extra diagonals. "
                               "Geometry that only carries triangles (Card3D, Cube3D, Sphere3D, Cylinder3D) "
                               "always draws its triangle edges."));
@@ -1720,7 +1720,7 @@ struct GeoData {
     std::vector<int> triIndices;
     // Source mesh (shared, not copied) for geometry read from a file or built
     // as polygons — its faceIndices/faceCounts index into `verts`. Used only by
-    // the Wireframe shading mode in Polygons edge mode, to draw the faces'
+    // the Wireframe shading mode in Quads mesh mode, to draw the faces'
     // own edges instead of the triangulation. Null for triangle-only
     // procedural primitives, which fall back to triangle edges.
     MeshDataPtr srcMesh;
@@ -2636,7 +2636,7 @@ renderGeoObjectGlsl(const GeoData& geo, GLuint program,
     glEnableVertexAttribArray(4);
     glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void*)(12 * sizeof(float)));
 
-    // Wireframe mode draws GL_LINES. Polygons edge mode uses the source faces'
+    // Wireframe mode draws GL_LINES. Quads mesh mode uses the source faces'
     // own edges (quads/n-gons without triangulation diagonals), built here
     // only when needed so Shaded/Flat renders pay nothing. Otherwise — or for
     // triangle-only geometry such as the procedural primitives, which carry
