@@ -14,14 +14,21 @@ elif [ -f "$I/App/Natron.exe" ];            then BIN_DIR="$I/App";      BIN="Nat
 else die "no staged binary found in $I (run 06-install.sh first)"; fi
 
 log "Verifying $BIN_DIR/$BIN with a CLEAN PATH (proves standalone — DLLs must come from the bundle)"
+rc=0
 out="$(cd "$BIN_DIR" && PATH="/usr/bin:/c/Windows/System32:/c/Windows" \
-      timeout 300 ./"$BIN" -t "$SCRIPT" </dev/null 2>&1 || true)"
+      timeout 300 ./"$BIN" -t "$SCRIPT" </dev/null 2>&1)" || rc=$?
 
 # Print the signal lines. (Use here-strings below, NOT `echo | grep -q`: under
 # `set -o pipefail`, grep -q exits early and SIGPIPEs echo -> false failure.)
 grep -E "RESULT|Failed to import qtpy|DLL load failed" <<<"$out" || true
 
-grep -q "RESULT DONE_OK" <<<"$out" || die "verification did not reach DONE_OK"
+if ! grep -q "RESULT DONE_OK" <<<"$out"; then
+  # Show what the binary printed: a startup crash (missing DLL = exit 127 or
+  # 0xc0000135, missing symbol = 0xc0000139) or a Python error is visible here.
+  warn "$BIN exit code: $rc (127 / 3221225781 = a DLL is missing, 3221225785 = a DLL lacks a symbol, 124 = timeout)"
+  printf '%s\n' "$out" | tail -n 40 >&2
+  die "verification did not reach DONE_OK"
+fi
 ok "engine + Python init OK (DONE_OK)"
 
 if grep -q "fr.inria.built-in.CyclesRender" <<<"$out"; then ok "Cycles node present"
