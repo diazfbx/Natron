@@ -55,13 +55,17 @@ NIK_KIT_REF="692201dde7e891895044a7ed224ffe6e37c0c66a"
 # ---- Toolchain location ---------------------------------------------
 # MSYS2 deprecated the MINGW64 environment (2026-03) and has been removing its
 # leaf packages (pyside6, openimageio, opencolorio, ...) since 2026-10-24, so the
-# build now targets UCRT64. The prefix follows the shell you run in: the MSYS2
-# shells export MSYSTEM_PREFIX (/ucrt64, /mingw64) and MINGW_PACKAGE_PREFIX
-# (mingw-w64-ucrt-x86_64, mingw-w64-x86_64). Outside such a shell, UCRT64.
+# build now targets UCRT64 (MINGW64 shells are refused by lib.sh).
 MSYS2_ROOT="${MSYS2_ROOT:-/c/msys64}"
-MINGW="${MINGW:-$MSYS2_ROOT${MSYSTEM_PREFIX:-/ucrt64}}"
+# Chosen from MSYSTEM only (the shell's name, also shown in the prompt): the
+# MSYSTEM_PREFIX / MINGW_PACKAGE_PREFIX variables can be stale or overridden
+# (a Windows-level variable left from a MINGW64 setup made a UCRT64 shell ask
+# for mingw-w64-x86_64-* packages).
+case "${MSYSTEM:-UCRT64}" in
+  MINGW64) _ENV_DIR=/mingw64; PKG=mingw-w64-x86_64 ;;
+  CLANG64) _ENV_DIR=/clang64; PKG=mingw-w64-clang-x86_64 ;;
+  *)       _ENV_DIR=/ucrt64;  PKG=mingw-w64-ucrt-x86_64 ;;
+esac
+MINGW="$MSYS2_ROOT$_ENV_DIR"
 # Same prefix as a Windows path (C:/msys64/ucrt64), for CMake / LLVM_INSTALL_DIR.
 MINGW_WIN="$(cygpath -m "$MINGW" 2>/dev/null || printf '%s' "$MINGW")"
-# pacman package prefix of that environment.
-PKG="${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"
-PKG="${PKG%-}"   # some shells export the prefix with a trailing dash
