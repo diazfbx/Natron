@@ -45,6 +45,21 @@ if(WIN32)\
   add_compile_definitions(_USE_MATH_DEFINES)\
 endif()\
 ' CMakeLists.txt; ok "cycles: M_PI inserted before add_subdirectory(src)"; fi
+  # (d) NODE_DEFINE static-init order. The macro defined node_type_ (whose dynamic
+  # initialiser calls get_node_type(), which locks node_type_mutex_) BEFORE the
+  # mutex. Harmless where std::mutex is constant-initialised (MINGW64's GCC), but
+  # the UCRT64 GCC 16 toolchain constructs it dynamically, so every Natron binary
+  # aborted at startup: "terminate ... std::system_error: Invalid argument" from
+  # ccl::DenoiseParams::get_node_type(). Define the mutex first (same TU => it is
+  # constructed first). Idempotent: the awk is a no-op once the order is right.
+  NT=src/graph/node_type.h
+  if [ -f "$NT" ]; then
+    awk '/^  thread_mutex structname::node_type_mutex_; \\$/ { next }
+         /^  const NodeType \*structname::node_type_ = get_node_type\(\); \\$/ { print "  thread_mutex structname::node_type_mutex_; \\" }
+         { print }' "$NT" > "$NT.tmp"
+    if cmp -s "$NT" "$NT.tmp"; then rm -f "$NT.tmp"; ok "cycles: NODE_DEFINE mutex order already fixed"
+    else mv "$NT.tmp" "$NT"; ok "cycles: NODE_DEFINE defines node_type_mutex_ before node_type_"; fi
+  fi
 else
   ok "WITH_CYCLES=0 — skipping Cycles patches"
 fi
