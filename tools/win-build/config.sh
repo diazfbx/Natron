@@ -30,6 +30,12 @@ VCVARS='C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Bui
 # 1 = also stage a standalone NatronRenderer.exe;  0 = GUI only.
 STAGE_RENDERER=1
 
+# 1 = strip the debug symbols from the STAGED Natron.exe / NatronRenderer.exe / *.ofx
+# (RelWithDebInfo + statically linked Cycles makes Natron.exe ~2 GB, slow to load;
+# stripped it is ~150 MB). The build tree (Natron/build-qt6) keeps the unstripped
+# binaries for gdb backtraces.  0 = ship the binaries with their symbols.
+STRIP_INSTALL=1
+
 # Parallel jobs.  "auto" = nproc.  Natron's moc/autogen phase is capped (see lib.sh).
 JOBS="auto"
 NATRON_JOBS=""          # leave empty to derive from JOBS (capped at 8 for moc safety)

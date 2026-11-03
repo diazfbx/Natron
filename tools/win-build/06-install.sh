@@ -148,4 +148,15 @@ if [ -d "$OCIO_EXTRA" ]; then
   cp "$OCIO_EXTRA/LICENSE-OpenColorIO.txt" "$I/Licenses/OpenColorIO-configs-LICENSE.txt"
 fi
 
+# --- Strip debug symbols from the staged binaries (build-qt6 keeps them) ---
+if [ "${STRIP_INSTALL:-1}" = "1" ]; then
+  log "Stripping debug symbols from the staged binaries (STRIP_INSTALL=1)"
+  for f in "$I/App/Natron.exe" "$I/Renderer/NatronRenderer.exe" $(find "$I/Plugins/OFX" -name '*.ofx' 2>/dev/null); do
+    [ -f "$f" ] || continue
+    before=$(du -m "$f" | cut -f1)
+    strip --strip-debug "$f" && ok "  $(basename "$f"): ${before} MB -> $(du -m "$f" | cut -f1) MB" \
+      || warn "  could not strip $f (kept as is)"
+  done
+fi
+
 ok "Phase 06 (install) complete — staged at $I"
