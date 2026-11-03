@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run every phase in order. Edit config.sh first. Run in the MSYS2 MINGW64 shell.
+# Run every phase in order. Edit config.sh first. Run in the MSYS2 UCRT64 shell.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/config.sh"

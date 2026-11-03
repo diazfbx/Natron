@@ -26,6 +26,18 @@ project(Natron
     LANGUAGES CXX C
 )
 
+# MSYS2 environment prefix (e.g. C:/msys64/ucrt64) used as a search hint for
+# headers/libraries. Derived from the compiler (<prefix>/bin/g++.exe) so the
+# build follows whichever MSYS2 environment it is configured from — UCRT64
+# now that MSYS2 has deprecated MINGW64 and is removing its packages.
+if(WIN32 AND MINGW)
+    get_filename_component(_natron_cc_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(_natron_msys_prefix "${_natron_cc_bin}" DIRECTORY)
+    set(NATRON_MSYS_PREFIX "${_natron_msys_prefix}" CACHE PATH "MSYS2 environment prefix (e.g. C:/msys64/ucrt64)")
+else()
+    set(NATRON_MSYS_PREFIX "" CACHE PATH "MSYS2 environment prefix (Windows only)")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 
 include(GNUInstallDirs)
@@ -39,7 +51,7 @@ option(BUILD_GLSL_TESTBED "Build the standalone GLSL 3.3 + MRT feasibility teste
 set(NATRON_CYCLES_DIR "" CACHE PATH "Path to Cycles source directory")
 set(NATRON_WGPU_DIR "" CACHE PATH "Dir containing webgpu.h, wgpu.h, wgpu_native.dll (FastVolumeRender)")
 set(NATRON_CYCLES_BUILD_DIR "" CACHE PATH "Path to Cycles build directory")
-set(NATRON_LLVM_INSTALL_DIR "" CACHE PATH "LLVM/Clang install dir for shiboken (e.g. /c/msys64/mingw64)")
+set(NATRON_LLVM_INSTALL_DIR "" CACHE PATH "LLVM/Clang install dir for shiboken (e.g. C:/msys64/ucrt64)")
 # Set LLVM_INSTALL_DIR in the process environment so shiboken's clang can find
 # its built-in headers (mm_malloc.h, etc). This is needed on Windows when
 # multiple GCC installations exist (e.g. Strawberry Perl + MSYS2).

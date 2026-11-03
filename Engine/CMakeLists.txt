@@ -30,8 +30,8 @@ else()
 endif()
 
 # Alembic support for ReadGeo and ReadAlembicCamera
-find_library(ALEMBIC_LIBRARY NAMES Alembic HINTS /c/msys64/mingw64/lib)
-find_path(ALEMBIC_INCLUDE_DIR NAMES Alembic/AbcGeom/All.h HINTS /c/msys64/mingw64/include)
+find_library(ALEMBIC_LIBRARY NAMES Alembic HINTS ${NATRON_MSYS_PREFIX}/lib)
+find_path(ALEMBIC_INCLUDE_DIR NAMES Alembic/AbcGeom/All.h HINTS ${NATRON_MSYS_PREFIX}/include)
 if(ALEMBIC_LIBRARY AND ALEMBIC_INCLUDE_DIR)
     message(STATUS "Alembic found — ReadGeo and ReadAlembicCamera will have Alembic support")
     set(NATRON_HAVE_ALEMBIC ON)
@@ -178,7 +178,7 @@ target_include_directories(NatronEngine
         Dev/Deep
         Dev/Scene3D
         Dev/Particles
-        /c/msys64/mingw64/include/Imath
+        ${NATRON_MSYS_PREFIX}/include/Imath
         Dev/Channel
         ${X11_INCLUDE_DIR}
 )
@@ -210,8 +210,8 @@ if(NATRON_FASTVOLUME)
     # GPU volume node: wgpu-native + system OpenVDB, independent of Cycles.
     target_include_directories(NatronEngine SYSTEM PRIVATE
         ${NATRON_WGPU_DIR}
-        /c/msys64/mingw64/include/Imath
-        /c/msys64/mingw64/include/OpenEXR
+        ${NATRON_MSYS_PREFIX}/include/Imath
+        ${NATRON_MSYS_PREFIX}/include/OpenEXR
     )
     # NATRON_HAVE_OPENVDB enables ReadVDB::getVDBDirect / VDBDirectData (the
     # data the node consumes). When Cycles is off this block is the only thing
@@ -248,13 +248,13 @@ target_include_directories(NatronEngine SYSTEM PRIVATE
         ${Python3_INCLUDE_DIRS}
         ${SHIBOKEN_INCLUDE_DIRS}
         $<$<BOOL:${NATRON_HAVE_ALEMBIC}>:${ALEMBIC_INCLUDE_DIR}>
-        $<$<BOOL:${NATRON_HAVE_ALEMBIC}>:/c/msys64/mingw64/include/Imath>
+        $<$<BOOL:${NATRON_HAVE_ALEMBIC}>:${NATRON_MSYS_PREFIX}/include/Imath>
 )
 # Alembic link
 if(NATRON_HAVE_ALEMBIC)
-    target_include_directories(NatronEngine PRIVATE /c/msys64/mingw64/include/Imath)
+    target_include_directories(NatronEngine PRIVATE ${NATRON_MSYS_PREFIX}/include/Imath)
     target_link_libraries(NatronEngine PRIVATE ${ALEMBIC_LIBRARY})
-    target_compile_options(NatronEngine PRIVATE "-I/c/msys64/mingw64/include/Imath")
+    target_compile_options(NatronEngine PRIVATE "-I${NATRON_MSYS_PREFIX}/include/Imath")
 endif()
 target_compile_definitions(NatronEngine
     PRIVATE

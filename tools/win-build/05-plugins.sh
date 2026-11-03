@@ -6,8 +6,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$HERE/config.sh"; 
 require_mingw
 
 CMAKE_COMMON=( -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=RelWithDebInfo
-  -DCMAKE_CXX_COMPILER=/c/msys64/mingw64/bin/g++.exe
-  -DCMAKE_MAKE_PROGRAM=/c/msys64/mingw64/bin/mingw32-make.exe
+  -DCMAKE_CXX_COMPILER=$MINGW_WIN/bin/g++.exe
+  -DCMAKE_MAKE_PROGRAM=$MINGW_WIN/bin/mingw32-make.exe
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 )
 
 log "openfx-misc: fetch pinned CImg.h"

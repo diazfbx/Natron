@@ -1,7 +1,7 @@
 # Natron Windows build scripts (MSYS2)
 
 `tools/win-build/` — push-button build of Natron RB-2.6 (Qt6 + Cycles + OFX plugins +
-PyPlugs) into a clean, relocatable install folder. Run everything in the **MSYS2 MINGW64**
+PyPlugs) into a clean, relocatable install folder. Run everything in the **MSYS2 UCRT64**
 shell. (Distinct from `tools/jenkins/` and `tools/buildmaster/`, which are the Linux/CI
 `build-natron.sh` scripts.)
 
@@ -13,10 +13,12 @@ shell. (Distinct from `tools/jenkins/` and `tools/buildmaster/`, which are the L
 ## Before you start (first time only)
 
 1. **Install MSYS2** from https://www.msys2.org/ — accept the defaults (installs to `C:\msys64`).
-2. **Open the *MINGW64* terminal.** From the Start menu choose **"MSYS2 MINGW64"** — not
-   "MSYS2 MSYS" or "UCRT64". The prompt must show **MINGW64** in purple. (The build fails in
-   the other shells.)
-3. **Get the code** (need ~15 GB free on the build drive). In the MINGW64 shell:
+2. **Open the *UCRT64* terminal.** From the Start menu choose **"MSYS2 UCRT64"** — not
+   "MSYS2 MSYS". The prompt must show **UCRT64**. (MSYS2 deprecated MINGW64 and has been
+   removing its packages — pyside6, openimageio, opencolorio… — since 2026-10-24, so
+   `00-deps.sh` fails there with "target not found". The scripts follow the shell's
+   environment: MINGW64 still works where its packages remain, with a warning. The MSYS shell itself does not work.)
+3. **Get the code** (need ~15 GB free on the build drive). In the UCRT64 shell:
    ```bash
    pacman -S --needed git          # if git isn't installed yet
    cd /d                           # pick a drive: /c = C:, /d = D:, ...
@@ -28,7 +30,7 @@ You don't edit any paths — `NATRON_ROOT` auto-detects from where you cloned.
 
 ## Quick start
 
-From `Natron/tools/win-build` in the MINGW64 shell:
+From `Natron/tools/win-build` in the UCRT64 shell:
 
 ```bash
 bash build-all.sh
@@ -74,7 +76,7 @@ A finished build leaves **two copies of `Natron.exe` / `NatronRenderer.exe`**:
 
 | Folder | Role | Who needs it |
 |---|---|---|
-| `Natron/build-qt6/` | **develop + run here.** Edit code, `mingw32-make`, launch `build-qt6/App/Natron.exe` from the MINGW64 shell. Incremental rebuilds = seconds to minutes. | developers |
+| `Natron/build-qt6/` | **develop + run here.** Edit code, `mingw32-make`, launch `build-qt6/App/Natron.exe` from the UCRT64 shell. Incremental rebuilds = seconds to minutes. | developers |
 | `Natron-install/` | **shippable, relocatable bundle.** A deliberate self-contained copy with DLLs + Python + plugins staged in. Phase 07 proves it launches with a clean PATH. | distribution / non-dev users / standalone QA |
 
 They're **different deliverables, not redundant builds.** For a developer iterating on code,
@@ -144,7 +146,7 @@ git -C $NATRON_ROOT/openfx-io diff > tools/win-build/patches/openfx-io.patch
 
 - Runs under **MSYS2 git** (mingw64 on PATH). Idempotency for `cycles-mingw.patch` uses a
   content sentinel, not `git apply --reverse --check` (that check differs across git builds).
-- `pacman -Syu` may demand you reopen the MINGW64 terminal; `00-deps.sh` warns if so — reopen and re-run it.
+- `pacman -Syu` may demand you reopen the UCRT64 terminal; `00-deps.sh` warns if so — reopen and re-run it.
 - **Don't skip the full `-Syu`.** MSYS2 doesn't support partial upgrades: `pacman -S`'ing
   packages without it can leave soname mismatches (e.g. a newer OpenImageIO wanting
   `libopenjph-0.28.dll` while `openjph` is still 0.27 → `NatronRenderer.exe` exits 127 at

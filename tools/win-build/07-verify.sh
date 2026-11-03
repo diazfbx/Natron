@@ -36,8 +36,8 @@ grep -q "fr.inria.openfx.WriteOIIO" <<<"$out" || die "openfx-io (WriteOIIO) not 
 grep -q "eu.cimg."  <<<"$out" || die "CImg.ofx not loaded"
 grep -q "net.fxarena.openfx.ReadSVG" <<<"$out" || die "Arena.ofx not loaded (ReadSVG missing)"
 # SeExpr/SeExprSimple/SeNoise/SeGrain are built into IO.ofx only when openfx-io finds the
-# SeExpr 2.11 library (MSYS2 package mingw-w64-x86_64-seexpr); 35 bundled PyPlugs need them.
-grep -q "fr.inria.openfx.SeExprSimple" <<<"$out" || die "IO.ofx was built without SeExpr (SeExprSimple missing): is mingw-w64-x86_64-seexpr installed?"
+# SeExpr 2.11 library (MSYS2 package $PKG-seexpr); 35 bundled PyPlugs need them.
+grep -q "fr.inria.openfx.SeExprSimple" <<<"$out" || die "IO.ofx was built without SeExpr (SeExprSimple missing): is $PKG-seexpr installed?"
 grep -q "net.sf.openfx.SeNoise" <<<"$out" || die "IO.ofx was built without SeNoise"
 grep -q "com.nikkit.openfx.SoftThreshold" <<<"$out" || die "NikKit.ofx not loaded (SoftThreshold missing)"
 ok "OFX plugins loaded (openfx-io + CImg + Arena + SeExpr nodes + NikKit)"

@@ -28,13 +28,13 @@ fi
 log "Configuring Natron (Cycles: ${WITH_CYCLES:-1})"
 cmake .. -G "MinGW Makefiles" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNATRON_QT6=ON -DNATRON_BUILD_TESTS=OFF \
-  -DCMAKE_C_COMPILER=/c/msys64/mingw64/bin/gcc.exe \
-  -DCMAKE_CXX_COMPILER=/c/msys64/mingw64/bin/g++.exe \
-  -DCMAKE_MAKE_PROGRAM=/c/msys64/mingw64/bin/mingw32-make.exe \
-  -DPython3_EXECUTABLE=/c/msys64/mingw64/bin/python3.exe \
-  -DPython_EXECUTABLE=/c/msys64/mingw64/bin/python3.exe \
-  -DPython3_ROOT_DIR=/c/msys64/mingw64 -DPython_ROOT_DIR=/c/msys64/mingw64 \
-  -DNATRON_LLVM_INSTALL_DIR=C:/msys64/mingw64 \
+  -DCMAKE_C_COMPILER=$MINGW_WIN/bin/gcc.exe \
+  -DCMAKE_CXX_COMPILER=$MINGW_WIN/bin/g++.exe \
+  -DCMAKE_MAKE_PROGRAM=$MINGW_WIN/bin/mingw32-make.exe \
+  -DPython3_EXECUTABLE=$MINGW_WIN/bin/python3.exe \
+  -DPython_EXECUTABLE=$MINGW_WIN/bin/python3.exe \
+  -DPython3_ROOT_DIR=$MINGW_WIN -DPython_ROOT_DIR=$MINGW_WIN \
+  -DNATRON_LLVM_INSTALL_DIR=$MINGW_WIN \
   "${CYCLES_FLAGS[@]}" "${FASTVOLUME_FLAGS[@]}"
 
 log "Building Natron (-j$(natron_jobs_n)) — moc-capped for stability"

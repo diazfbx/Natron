@@ -31,7 +31,7 @@ cmake .. -G "MinGW Makefiles" \
   -DWITH_CYCLES_OPENCOLORIO=ON -DWITH_CYCLES_OPENSUBDIV=ON \
   -DWITH_CYCLES_OPENVDB=ON -DWITH_CYCLES_ALEMBIC=OFF \
   -DWITH_CYCLES_LOGGING=OFF -DWITH_LIBS_PRECOMPILED=OFF \
-  -DTBB_ROOT_DIR=/c/msys64/mingw64
+  -DTBB_ROOT_DIR="$MINGW_WIN"
 
 log "Building Cycles (-j$(jobs_n)) — this is the long one"
 mingw32-make -j"$(jobs_n)"

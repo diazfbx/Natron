@@ -1,6 +1,6 @@
 # =====================================================================
 # win-build — configuration.  EDIT THIS FILE, then run ./build-all.sh
-# (run everything in the MSYS2 *MINGW64* shell)
+# (run everything in the MSYS2 *UCRT64* shell — MINGW64 is deprecated by MSYS2)
 # =====================================================================
 
 # Parent dir holding your Natron checkout + sibling builds (cycles/, openfx-*/, etc.).
@@ -53,4 +53,14 @@ NIK_KIT_REF="692201dde7e891895044a7ed224ffe6e37c0c66a"
 # natron-plugins is content only (no patch); tracks tip. Built-with: b0c499fb6391024f54be9f26ed41b5cf7475d574
 
 # ---- Toolchain location ---------------------------------------------
-MINGW="/c/msys64/mingw64"
+# MSYS2 deprecated the MINGW64 environment (2026-03) and has been removing its
+# leaf packages (pyside6, openimageio, opencolorio, ...) since 2026-10-24, so the
+# build now targets UCRT64. The prefix follows the shell you run in: the MSYS2
+# shells export MSYSTEM_PREFIX (/ucrt64, /mingw64) and MINGW_PACKAGE_PREFIX
+# (mingw-w64-ucrt-x86_64, mingw-w64-x86_64). Outside such a shell, UCRT64.
+MSYS2_ROOT="${MSYS2_ROOT:-/c/msys64}"
+MINGW="${MINGW:-$MSYS2_ROOT${MSYSTEM_PREFIX:-/ucrt64}}"
+# Same prefix as a Windows path (C:/msys64/ucrt64), for CMake / LLVM_INSTALL_DIR.
+MINGW_WIN="$(cygpath -m "$MINGW" 2>/dev/null || printf '%s' "$MINGW")"
+# pacman package prefix of that environment.
+PKG="${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"
