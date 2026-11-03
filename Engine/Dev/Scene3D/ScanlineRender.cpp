@@ -129,6 +129,10 @@ struct ScanlineRenderPrivate
     // offset), so the edges behind other surfaces are hidden.
     KnobBoolWPtr wireframeOpaque;
 
+    // Wireframe line colour and width (pixels at full resolution).
+    KnobColorWPtr  wireframeColor;
+    KnobDoubleWPtr wireframeWidth;
+
     // Global ambient fill colour added to surfaces in Shaded mode (so unlit /
     // back-facing areas aren't pure black). Multiplies the surface colour, like
     // the previously hard-coded 0.15 grey. Default 0.15 grey preserves that.
@@ -294,6 +298,23 @@ ScanlineRender::initializeKnobs()
                               "wireframe can be laid over the plate. Unchecked: every edge is drawn, "
                               "including the ones behind other geometry."));
         outPage->addKnob(k); _imp->wireframeOpaque = k;
+    }
+    {
+        KnobColorPtr k = AppManager::createKnob<KnobColor>(this, tr("Wireframe Color"), 3);
+        k->setName("wireframeColor");
+        k->setDefaultValue(1.0, 0); k->setDefaultValue(1.0, 1); k->setDefaultValue(1.0, 2);
+        k->setHintToolTip(tr("Colour of the wireframe lines (Wireframe shading)."));
+        outPage->addKnob(k); _imp->wireframeColor = k;
+    }
+    {
+        KnobDoublePtr k = AppManager::createKnob<KnobDouble>(this, tr("Wireframe Width"));
+        k->setName("wireframeWidth");
+        k->setDefaultValue(1.0);
+        k->setMinimum(0.1); k->setMaximum(20.0);
+        k->setDisplayMinimum(0.5); k->setDisplayMaximum(6.0);
+        k->setHintToolTip(tr("Width of the wireframe lines in pixels, at full resolution "
+                              "(scaled down with the proxy / render scale)."));
+        outPage->addKnob(k); _imp->wireframeWidth = k;
     }
     {
         KnobColorPtr k = AppManager::createKnob<KnobColor>(this, tr("Ambient"), 3);
@@ -1168,6 +1189,7 @@ static const char* kBeautyFrag =
     "uniform float u_lightIntensity;\n"
     "uniform vec3 u_cameraPos;       // world-space camera position (fallback headlight when no Light3D)\n"
     "uniform vec3 u_ambient;         // global ambient fill colour (Shaded mode)\n"
+    "uniform vec3 u_wireColor;       // Wireframe shading line colour\n"
     "uniform int u_transparency;     // 1 = respect surface alpha, 0 = force opaque\n"
     "uniform int u_writeNormal;      // attachment 1 (Phase 3D)\n"
     "uniform int u_writeUV;          // attachment 2 (Phase 3D)\n"
@@ -1215,7 +1237,7 @@ static const char* kBeautyFrag =
     "void main() {\n"
     "    // --- Wireframe: solid white edges, skip texture sampling + lighting ---\n"
     "    if (u_shadingMode == 2) {\n"
-    "        out_color = vec4(1.0, 1.0, 1.0, 1.0);\n"
+    "        out_color = vec4(u_wireColor, 1.0);\n"
     "    } else {\n"
     "        // --- Base color from texture / STW / vertex (existing logic) ---\n"
     "        vec4 baseColor;\n"
@@ -1526,6 +1548,7 @@ static const char* kInstanceFrag =
     "uniform float u_lightIntensity;\n"
     "uniform vec3 u_cameraPos;\n"
     "uniform vec3 u_ambient;\n"
+    "uniform vec3 u_wireColor;\n"
     "uniform int  u_transparency;\n"
     "uniform int  u_writeNormal;\n"
     "uniform int  u_writeUV;\n"
@@ -1543,7 +1566,7 @@ static const char* kInstanceFrag =
     "    vec4 col = v_color;\n"
     "    if (u_hasTexture == 1) { vec4 tc = texture(u_tex, v_uv); col = vec4(col.rgb * tc.rgb, col.a * tc.a); }\n"
     "    if (u_shadingMode == 2) {\n"
-    "        out_color = vec4(1.0);\n"
+    "        out_color = vec4(u_wireColor, 1.0);\n"
     "    } else if (u_shadingMode == 0) {\n"
     "        vec3 N = normalize(v_worldNormal);\n"
     "        vec3 L; vec3 lCol; float lInt;\n"
@@ -2823,6 +2846,17 @@ ScanlineRender::render(const RenderActionArgs& args)
         ambient[2] = (float)ac->getValueAtTime(args.time, 2);
     }
 
+    // Wireframe line colour + width (width in pixels at full resolution,
+    // scaled with the render scale so proxies keep the same look).
+    float wireColor[3] = { 1.0f, 1.0f, 1.0f };
+    if (KnobColorPtr wc = _imp->wireframeColor.lock()) {
+        wireColor[0] = (float)wc->getValueAtTime(args.time, 0);
+        wireColor[1] = (float)wc->getValueAtTime(args.time, 1);
+        wireColor[2] = (float)wc->getValueAtTime(args.time, 2);
+    }
+    float wireWidth = _imp->wireframeWidth.lock() ? (float)_imp->wireframeWidth.lock()->getValueAtTime(args.time) : 1.0f;
+    wireWidth = std::max(0.1f, wireWidth / (float)(1u << args.mappedScale.toMipmapLevel()));
+
     // Transparency: 1 = respect surface alpha, 0 = force opaque.
     const int transparency = (_imp->transparency.lock() && !_imp->transparency.lock()->getValue()) ? 0 : 1;
 
@@ -3414,6 +3448,9 @@ ScanlineRender::render(const RenderActionArgs& args)
         if (locBeautyAmbient >= 0) glUniform3fv(locBeautyAmbient, 1, ambient);
         const GLint locBeautyTransp = glGetUniformLocation(glslBeautyProg, "u_transparency");
         if (locBeautyTransp >= 0) glUniform1i(locBeautyTransp, transparency);
+        const GLint locBeautyWire = glGetUniformLocation(glslBeautyProg, "u_wireColor");
+        if (locBeautyWire >= 0) glUniform3fv(locBeautyWire, 1, wireColor);
+        if (shadingMode == 2) glLineWidth(wireWidth);
         if (wireframeOpaque) {
             // Hidden-line pre-pass: every surface into the depth buffer only, pushed
             // slightly back so its own edges (drawn next, at the same depth) pass the
@@ -3444,6 +3481,7 @@ ScanlineRender::render(const RenderActionArgs& args)
                                 wantsPrefMrt, wantsVelocityMrt,
                                 polygonWireEdges);
         }
+        if (shadingMode == 2) glLineWidth(1.0f);
         glUseProgram(0);
         // Restore single-attachment draw buffer so particles + volumes only
         // paint into beauty (they don't emit AOV outputs).
@@ -4283,6 +4321,8 @@ ScanlineRender::render(const RenderActionArgs& args)
 
             if (locProjMode     >= 0) glUniform1i(locProjMode, projMode);
             if (locAmbientI     >= 0) glUniform3fv(locAmbientI, 1, ambient);
+            const GLint locWireI = glGetUniformLocation(glslInstanceProg, "u_wireColor");
+            if (locWireI        >= 0) glUniform3fv(locWireI, 1, wireColor);
             if (locTranspI      >= 0) glUniform1i(locTranspI, transparency);
             if (locViewMat      >= 0) glUniformMatrix4fv(locViewMat, 1, GL_FALSE, viewMatrix);
             if (locNearI        >= 0) glUniform1f(locNearI, camNear);
