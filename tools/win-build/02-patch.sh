@@ -60,6 +60,25 @@ endif()\
     if cmp -s "$NT" "$NT.tmp"; then rm -f "$NT.tmp"; ok "cycles: NODE_DEFINE mutex order already fixed"
     else mv "$NT.tmp" "$NT"; ok "cycles: NODE_DEFINE defines node_type_mutex_ before node_type_"; fi
   fi
+  # (e) Same bug ACROSS translation units, which reordering cannot fix: e.g.
+  # volume.cpp's static init registers Volume, whose register_type() calls
+  # Mesh::get_node_type(), which locks mesh.cpp's node_type_mutex_ before
+  # mesh.cpp's statics are constructed. Lock a function-local static mutex
+  # instead: it is constructed on first use, whatever the TU order (C++11
+  # thread-safe statics). node_type_mutex_ stays defined, just unused.
+  if [ -f "$NT" ]; then
+    if grep -q 'static thread_mutex node_type_init_mutex;' "$NT"; then ok "cycles: get_node_type already uses a function-local mutex"
+    else
+      awk '/^      thread_scoped_lock lock\(node_type_mutex_\); \\$/ {
+             print "      static thread_mutex node_type_init_mutex; \\"
+             print "      thread_scoped_lock lock(node_type_init_mutex); \\"
+             next }
+           { print }' "$NT" > "$NT.tmp" && mv "$NT.tmp" "$NT"
+      grep -q 'static thread_mutex node_type_init_mutex;' "$NT" \
+        && ok "cycles: get_node_type locks a function-local mutex" \
+        || die "cycles: could not patch get_node_type in $NT (macro changed upstream?)"
+    fi
+  fi
 else
   ok "WITH_CYCLES=0 — skipping Cycles patches"
 fi
