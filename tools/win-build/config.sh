@@ -64,3 +64,4 @@ MINGW="${MINGW:-$MSYS2_ROOT${MSYSTEM_PREFIX:-/ucrt64}}"
 MINGW_WIN="$(cygpath -m "$MINGW" 2>/dev/null || printf '%s' "$MINGW")"
 # pacman package prefix of that environment.
 PKG="${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"
+PKG="${PKG%-}"   # some shells export the prefix with a trailing dash

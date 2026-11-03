@@ -8,10 +8,10 @@ die()  { printf '\033[1;31m  XX  %s\033[0m\n' "$*" >&2; exit 1; }
 # Ensure we are in an MSYS2 MinGW-w64 toolchain shell (UCRT64) and export the build env.
 require_mingw() {
   case "${MSYSTEM:-}" in
-    UCRT64|MINGW64|CLANG64) ;;
+    UCRT64|CLANG64) ;;
+    MINGW64) die "This is the MINGW64 terminal: MSYS2 has removed most of its packages (pyside6, openimageio, poppler...). Close it and open \"MSYS2 UCRT64\" from the Start menu (prompt shows UCRT64)." ;;
     *) die "Open the MSYS2 *UCRT64* terminal (prompt shows UCRT64, not MSYS) — current: ${MSYSTEM:-none}." ;;
   esac
-  [ "${MSYSTEM:-}" = "MINGW64" ] && warn "MINGW64 is deprecated by MSYS2 and is losing packages — use the UCRT64 terminal."
   if [ "${1:-}" != "--no-gcc" ] && [ ! -x "$MINGW/bin/gcc.exe" ]; then
     die "gcc not found at $MINGW/bin — run ./00-deps.sh first (it installs the $PKG toolchain)."
   fi

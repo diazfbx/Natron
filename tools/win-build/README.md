@@ -16,8 +16,8 @@ shell. (Distinct from `tools/jenkins/` and `tools/buildmaster/`, which are the L
 2. **Open the *UCRT64* terminal.** From the Start menu choose **"MSYS2 UCRT64"** — not
    "MSYS2 MSYS". The prompt must show **UCRT64**. (MSYS2 deprecated MINGW64 and has been
    removing its packages — pyside6, openimageio, opencolorio… — since 2026-10-24, so
-   `00-deps.sh` fails there with "target not found". The scripts follow the shell's
-   environment: MINGW64 still works where its packages remain, with a warning. The MSYS shell itself does not work.)
+   `00-deps.sh` fails there with "target not found". The scripts stop with a
+   message if started from MINGW64 or MSYS.)
 3. **Get the code** (need ~15 GB free on the build drive). In the UCRT64 shell:
    ```bash
    pacman -S --needed git          # if git isn't installed yet
