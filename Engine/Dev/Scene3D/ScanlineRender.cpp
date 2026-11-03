@@ -124,6 +124,11 @@ struct ScanlineRenderPrivate
     // (procedural primitives).
     KnobChoiceWPtr wireframeEdges;
 
+    // Wireframe hidden-line removal: when on, the geometry is first drawn into
+    // the depth buffer only (colour writes off, pushed back by a polygon
+    // offset), so the edges behind other surfaces are hidden.
+    KnobBoolWPtr wireframeOpaque;
+
     // Global ambient fill colour added to surfaces in Shaded mode (so unlit /
     // back-facing areas aren't pure black). Multiplies the surface colour, like
     // the previously hard-coded 0.15 grey. Default 0.15 grey preserves that.
@@ -278,6 +283,17 @@ ScanlineRender::initializeKnobs()
                               "Geometry that only carries triangles (Card3D, Cube3D, Sphere3D, Cylinder3D) "
                               "always draws its triangle edges."));
         outPage->addKnob(k); _imp->wireframeEdges = k;
+    }
+    {
+        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Opaque Wireframe"));
+        k->setName("wireframeOpaque"); k->setAnimationEnabled(false);
+        k->setDefaultValue(false);
+        k->setHintToolTip(tr("Wireframe shading only. When checked, the surfaces hide the edges behind "
+                              "them (hidden-line wireframe): only the edges you would see on a solid model "
+                              "are drawn. The surfaces themselves stay invisible (transparent), so the "
+                              "wireframe can be laid over the plate. Unchecked: every edge is drawn, "
+                              "including the ones behind other geometry."));
+        outPage->addKnob(k); _imp->wireframeOpaque = k;
     }
     {
         KnobColorPtr k = AppManager::createKnob<KnobColor>(this, tr("Ambient"), 3);
@@ -3198,6 +3214,7 @@ ScanlineRender::render(const RenderActionArgs& args)
     // motion-blur sample and every geo object inside the loop).
     int shadingMode = _imp->shadingMode.lock() ? _imp->shadingMode.lock()->getValue() : 0;
     const bool polygonWireEdges = _imp->wireframeEdges.lock() ? (_imp->wireframeEdges.lock()->getValue() == 0) : true;
+    const bool wireframeOpaque = (shadingMode == 2) && _imp->wireframeOpaque.lock() && _imp->wireframeOpaque.lock()->getValue();
     bool hasLight = false;
     float lightPos[3] = { 0, 0, 0 };
     float lightColor[3] = { 1, 1, 1 };
@@ -3397,6 +3414,26 @@ ScanlineRender::render(const RenderActionArgs& args)
         if (locBeautyAmbient >= 0) glUniform3fv(locBeautyAmbient, 1, ambient);
         const GLint locBeautyTransp = glGetUniformLocation(glslBeautyProg, "u_transparency");
         if (locBeautyTransp >= 0) glUniform1i(locBeautyTransp, transparency);
+        if (wireframeOpaque) {
+            // Hidden-line pre-pass: every surface into the depth buffer only, pushed
+            // slightly back so its own edges (drawn next, at the same depth) pass the
+            // depth test while edges behind other surfaces fail it.
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);   // all draw buffers (AOVs too)
+            glEnable(GL_POLYGON_OFFSET_FILL);
+            glPolygonOffset(1.0f, 1.0f);
+            for (size_t gi = 0; gi < geoObjects.size(); ++gi) {
+                renderGeoObjectGlsl(geoObjects[gi], glslBeautyProg,
+                                    projViewMatrix, prevProjViewMatrix,
+                                    outW, outH,
+                                    1 /* Flat: triangles, no lighting */, hasLight, lightPos, lightColor, lightIntensity,
+                                    cameraPos,
+                                    false, false, false, false,
+                                    polygonWireEdges);
+            }
+            glDisable(GL_POLYGON_OFFSET_FILL);
+            glPolygonOffset(0.0f, 0.0f);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        }
         for (size_t gi = 0; gi < geoObjects.size(); ++gi) {
             renderGeoObjectGlsl(geoObjects[gi], glslBeautyProg,
                                 projViewMatrix, prevProjViewMatrix,
