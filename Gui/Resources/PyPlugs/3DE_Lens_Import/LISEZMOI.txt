@@ -1,0 +1,41 @@
+3DE LENS IMPORT pour Natron
+===========================
+
+Ajoute un menu "3DE > Import distortion (.nk)" dans Natron. Il lit les nodes de distorsion
+exportes par 3DEqualizer pour Nuke (fichier .nk, script "Export Nuke Distortion Nodes") et cree
+le node LensDistortion de Natron avec le meme modele, la meme direction et les memes valeurs
+(animations comprises).
+
+Modeles pris en charge :
+  - 3DE4 Radial - Standard, Degree 4
+  - 3DE4 Anamorphic - Standard, Degree 4
+  - 3DE4 Anamorphic, Degree 6
+  - 3DE4 Radial - Fisheye, Degree 8
+  - 3DE Classic LD Model
+
+
+INSTALLATION
+------------
+Copier le dossier 3DE_Lens_Import dans le dossier PyPlugs de Natron :
+    C:\Program Files\Natron\Plugins\PyPlugs\
+puis redemarrer Natron. Le menu "3DE" apparait dans la barre du haut.
+
+(Sans droits administrateur : le copier plutot dans le dossier utilisateur
+ C:\Users\<nom>\.Natron\ , a creer s'il n'existe pas.)
+
+
+UTILISATION
+-----------
+- Selectionner le node a corriger (ex. le Read de la plate), puis menu 3DE > Import distortion (.nk).
+- Choisir le fichier .nk : un node LensDistortion est cree et branche sous le node selectionne.
+- Si l'image deborde, cocher "Black outside" dans le node pour avoir du noir comme dans Nuke.
+
+
+DESINSTALLATION
+---------------
+Supprimer le dossier 3DE_Lens_Import, puis redemarrer Natron.
+
+
+EN CAS DE PROBLEME
+------------------
+Le journal C:\Users\<nom>\.Natron\tde_lens_import.log contient le detail de chaque import.

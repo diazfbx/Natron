@@ -52,6 +52,15 @@ add_custom_command(TARGET Natron POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/Plugins/PyPlugs"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BUILTIN_PYPLUG_FILES} "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/"
     COMMENT "Copying built-in PyPlugs to ${CMAKE_BINARY_DIR}/Plugins/PyPlugs/")
+# 3DE Lens Import: menu "3DE > Import distortion (.nk)" (creates LensDistortion
+# nodes from 3DEqualizer's Nuke .nk export). It lives in its own subfolder —
+# its initGui.py must not collide with any other initGui.py at the PyPlugs
+# root — and Natron runs initGui.py found in PyPlugs subfolders at startup.
+add_custom_command(TARGET Natron POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/Gui/Resources/PyPlugs/3DE_Lens_Import"
+            "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/3DE_Lens_Import"
+    COMMENT "Copying 3DE Lens Import PyPlug to ${CMAKE_BINARY_DIR}/Plugins/PyPlugs/3DE_Lens_Import/")
 if(APPLE)
     set_target_properties(Natron PROPERTIES
         MACOSX_BUNDLE TRUE
