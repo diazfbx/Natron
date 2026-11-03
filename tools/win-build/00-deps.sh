@@ -8,9 +8,14 @@ log "pacman -Syu (refresh + core update)"
 pacman -Syu --noconfirm || warn "pacman -Syu returned non-zero — if it asked to CLOSE THE TERMINAL, reopen UCRT64 and re-run ./00-deps.sh before continuing."
 
 log "Installing core build + runtime dependencies"
+# "$PKG"-clang: shiboken6 parses the headers with libclang and needs Clang's
+# built-in headers (mm_malloc.h, ...) under <prefix>/lib/clang/<ver>/include —
+# without the clang package the NatronEngine bindings fail with
+# "'mm_malloc.h' file not found".
 pacman -S --needed --noconfirm \
   "$PKG"-toolchain "$PKG"-cmake git \
   "$PKG"-qt6-base "$PKG"-pyside6 "$PKG"-shiboken6 \
+  "$PKG"-clang \
   "$PKG"-qt6-imageformats "$PKG"-qt6-svg \
   "$PKG"-seexpr \
   "$PKG"-python "$PKG"-python-qtpy "$PKG"-boost \
