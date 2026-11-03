@@ -14,6 +14,10 @@ apply_patch() {
 }
 
 apply_patch openfx-io   "$PATCHES/openfx-io.patch"
+# FFmpeg 8+ removed AVCodec::pix_fmts (MSYS2 UCRT64 ships FFmpeg 9): WriteFFmpeg uses
+# avcodec_get_supported_config() instead. Separate file so it also applies on a checkout
+# that already carries openfx-io.patch.
+apply_patch openfx-io   "$PATCHES/openfx-io-ffmpeg.patch"
 apply_patch openfx-misc "$PATCHES/openfx-misc.patch"
 apply_patch openfx-arena "$PATCHES/openfx-arena.patch"
 

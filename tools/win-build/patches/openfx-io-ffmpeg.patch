@@ -1,0 +1,80 @@
+--- a/FFmpeg/WriteFFmpeg.cpp
++++ b/FFmpeg/WriteFFmpeg.cpp
+@@ -90,6 +90,24 @@
+ #error "This requires FFmpeg >= 4.0"
+ #endif
+ 
++// FFmpeg 7.1 deprecated AVCodec::pix_fmts in favour of avcodec_get_supported_config(),
++// and FFmpeg 8 removed the field. Returns the codec's AV_PIX_FMT_NONE-terminated
++// list of supported pixel formats, or nullptr when unknown/any.
++static const AVPixelFormat*
++codecPixelFormats(const AVCodec* codec)
++{
++#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
++    const void* configs = nullptr;
++    int numConfigs = 0;
++    if ( !codec || (avcodec_get_supported_config(nullptr, codec, AV_CODEC_CONFIG_PIX_FORMAT, 0, &configs, &numConfigs) < 0) ) {
++        return nullptr;
++    }
++    return static_cast<const AVPixelFormat*>(configs);
++#else
++    return codec ? codec->pix_fmts : nullptr;
++#endif
++}
++
+ #define OFX_FFMPEG_SCRATCHBUFFER 1 // avoid reallocating every frame
+ #define OFX_FFMPEG_PRINT_CODECS 0 // print list of supported/ignored codecs and formats
+ #define OFX_FFMPEG_TIMECODE 0 // timecode support
+@@ -1726,10 +1744,10 @@
+         } else {
+             outTargetPixelFormat = AV_PIX_FMT_YUV422P;
+         }
+-    } else if (videoCodec->pix_fmts != nullptr) {
++    } else if (codecPixelFormats(videoCodec) != nullptr) {
+         // This is the most frequent path, where we can guess best pix format using ffmpeg.
+         // find highest bit depth pix fmt.
+-        const AVPixelFormat* currPixFormat = videoCodec->pix_fmts;
++        const AVPixelFormat* currPixFormat = codecPixelFormats(videoCodec);
+ 
+         int prefBPP = FFmpeg::pixelFormatBPPFromSpec(prefPixelCoding, prefBitDepth, prefAlpha);
+ 
+@@ -1811,7 +1829,7 @@
+         } else {
+             // gather the formats that have the target BPP (avcodec_find_best_pix_fmt_of_list doesn't do the best job: it prefers yuv422p over yuv422p10)
+             vector<AVPixelFormat> bestFormats;
+-            currPixFormat = videoCodec->pix_fmts;
++            currPixFormat = codecPixelFormats(videoCodec);
+             while (*currPixFormat != -1) {
+                 int currBPP = FFmpeg::pixelFormatBPP(*currPixFormat);
+                 if (currBPP == selectedBPP) {
+@@ -1826,7 +1844,7 @@
+             // (the loss of first format is used a a mask for the second, etc) so that if the first pixel format
+             // loses resolution, resolution loss is not considered for other formats.
+             // If we pass NULL, the considered loss is ~0 for all formats
+-            outTargetPixelFormat = avcodec_find_best_pix_fmt_of_list(/*videoCodec->pix_fmts*/ &bestFormats[0], outRgbBufferPixelFormat, hasAlphaInt, nullptr);
++            outTargetPixelFormat = avcodec_find_best_pix_fmt_of_list(/*codecPixelFormats(videoCodec)*/ &bestFormats[0], outRgbBufferPixelFormat, hasAlphaInt, nullptr);
+         }
+ 
+ #ifdef DEBUG
+@@ -1874,7 +1892,7 @@
+                 // supported by the QT RLE codec and force the output pixel
+                 // format.
+                 //
+-                currPixFormat = videoCodec->pix_fmts;
++                currPixFormat = codecPixelFormats(videoCodec);
+                 while (*currPixFormat != -1) {
+                     AVPixelFormat avPixelFormat = *currPixFormat++;
+                     if ((AV_PIX_FMT_ARGB == avPixelFormat) || (AV_PIX_FMT_RGBA == avPixelFormat) || (AV_PIX_FMT_ABGR == avPixelFormat) || (AV_PIX_FMT_BGRA == avPixelFormat)) {
+@@ -4610,10 +4628,10 @@
+     ret += avOutputFormat->name;
+     ret += ":\n";
+ 
+-    if (videoCodec->pix_fmts == nullptr || *videoCodec->pix_fmts == -1) {
++    if (codecPixelFormats(videoCodec) == nullptr || *codecPixelFormats(videoCodec) == -1) {
+         ret += "none";
+     } else {
+-        const AVPixelFormat* currPixFormat = videoCodec->pix_fmts;
++        const AVPixelFormat* currPixFormat = codecPixelFormats(videoCodec);
+         bool comma = false;
+         while (*currPixFormat != -1) {
+             if (comma) {
