@@ -334,7 +334,7 @@ Cryptomatte::refreshManifest()
         const double time = getCurrentTime();
         std::vector<std::string> candidates;
         if (KnobFile* kf = dynamic_cast<KnobFile*>(fileKnobI.get())) {
-            candidates.push_back(kf->generateFileNameAtTime((SequenceTime)time, ViewSpec(0)).toStdString());
+            candidates.push_back(kf->getFileName((int)std::floor(time + 0.5), ViewSpec(0)));
         }
         KnobStringBasePtr ks = std::dynamic_pointer_cast<KnobStringBase>(fileKnobI);
         const std::string pattern = ks ? ks->getValue() : std::string();
