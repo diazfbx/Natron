@@ -26,12 +26,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <atomic>
 #include <type_traits>
 #include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <oleauto.h>
+#include "BlackmagicRawAPIDispatch.h"   // SDK: loads BlackmagicRawAPI.dll at run time
 #endif
 
 // ------------------------------------------------------------------ strings / variants per platform
@@ -190,10 +192,12 @@ public:
         if (result == S_OK) result = frame->CreateJobDecodeAndProcessFrame(clipAttrs, nullptr, &decodeJob);
         if (result == S_OK) result = decodeJob->Submit();
         if (result != S_OK) {
-            if (decodeJob) decodeJob->Release();
             error = "decode job failed";
         }
-        job->Release();
+        // The SDK keeps its own reference while the job runs: release ours
+        // (as its samples do); the read job belongs to main().
+        if (decodeJob) decodeJob->Release();
+        (void)job;
     }
 
     void ProcessComplete(IBlackmagicRawJob* job, HRESULT result, IBlackmagicRawProcessedImage* image) override
@@ -213,9 +217,10 @@ public:
         } else {
             error = "processing failed";
         }
-        job->Release();
+        (void)job;
     }
 
+    void ReadAudioComplete(IBlackmagicRawJob*, HRESULT, IBlackmagicRawAudioBuffer*) override {}
     void DecodeComplete(IBlackmagicRawJob*, HRESULT) override {}
     void TrimProgress(IBlackmagicRawJob*, float) override {}
     void TrimComplete(IBlackmagicRawJob*, HRESULT) override {}
@@ -233,17 +238,30 @@ public:
     }
 
 private:
-    ULONG refs = 0;
+    std::atomic<ULONG> refs{1};   // the creator holds the first reference
 };
 
 // ------------------------------------------------------------------ helpers
 static IBlackmagicRawFactory* createFactory()
 {
 #if defined(_WIN32)
-    IBlackmagicRawFactory* f = nullptr;
-    HRESULT r = CoCreateInstance(CLSID_CBlackmagicRawFactory, nullptr, CLSCTX_ALL, IID_IBlackmagicRawFactory,
-                                 reinterpret_cast<void**>(&f));
-    return r == S_OK ? f : nullptr;
+    // BlackmagicRawAPI.dll next to braw2exr.exe (or in its BlackmagicRawAPI/
+    // subfolder), else the SDK / Blackmagic RAW installs.
+    IBlackmagicRawFactory* f = CreateBlackmagicRawFactoryInstance();
+    const char* dirs[] = {
+#ifdef BRAW2EXR_LIBRARY_PATH
+        BRAW2EXR_LIBRARY_PATH,
+#endif
+        "C:/Program Files (x86)/Blackmagic Design/Blackmagic RAW/Blackmagic RAW SDK/Win/Libraries",
+        "C:/Program Files (x86)/Blackmagic Design/Blackmagic RAW/Blackmagic RAW Player",
+        "C:/Program Files/Blackmagic Design/DaVinci Resolve",
+    };
+    for (size_t i = 0; !f && i < sizeof(dirs) / sizeof(dirs[0]); ++i) {
+        BrawString p = makeString(dirs[i]);
+        f = CreateBlackmagicRawFactoryInstanceFromPath(p);
+        freeString(p);
+    }
+    return f;
 #elif defined(BRAW2EXR_LIBRARY_PATH)
     BrawString p = makeString(BRAW2EXR_LIBRARY_PATH);
     IBlackmagicRawFactory* f = CreateBlackmagicRawFactoryInstanceFromPath(p);
@@ -368,7 +386,6 @@ int main(int argc, char** argv)
         }
 
         cb = new Callback();
-        cb->AddRef();
         cb->clipAttrs = attrs;
         cb->useFloat = o.useFloat;
         cb->gammaName = currentAttribute(attrs, blackmagicRawClipProcessingAttributeGamma);
@@ -395,6 +412,7 @@ int main(int argc, char** argv)
                 rc = 1;
                 break;
             }
+            job->Release();          // FlushJobs waits until every job is released
             codec->FlushJobs();
             if (!cb->ok) {
                 std::fprintf(stderr, "braw2exr: frame %lld: %s\n", f, cb->error.c_str());
