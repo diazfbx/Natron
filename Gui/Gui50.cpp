@@ -2040,7 +2040,19 @@ NATRON_NAMESPACE_ENTER
 QString
 Gui::templatesDirectory()
 {
-    return appPTR->getApplicationBinaryPath() + QString::fromUtf8("../Resources/Templates/");
+    // getApplicationBinaryPath() has no trailing slash (".../bin"): join with "/".
+    // Install: <Natron>/bin/../Resources ; dev build: build-qt6/App/../Resources.
+    const QString bin = appPTR->getApplicationBinaryPath();
+    const QString candidates[2] = {
+        QDir::cleanPath( bin + QString::fromUtf8("/../Resources/Templates") ),
+        QDir::cleanPath( bin + QString::fromUtf8("/Resources/Templates") ),
+    };
+    for (int i = 0; i < 2; ++i) {
+        if ( QDir(candidates[i]).exists() ) {
+            return candidates[i] + QLatin1Char('/');
+        }
+    }
+    return candidates[0] + QLatin1Char('/');
 }
 
 void
