@@ -396,6 +396,12 @@ def braw_dialog(app, clip, info):
     if info.get("size") or info.get("frames"):
         i = d.createStringParam("info", "Clip")
         i.setValue("%s, %s frames" % (info.get("size", "?"), info.get("frames", "?")))
+    # The SDK's own names (braw2exr --list). If the list is empty, at least the
+    # values its OpenEXRTranscode sample uses for scene-linear EXR.
+    if not info["gamut"]:
+        info["gamut"] = ["ACES AP0"]
+    if not info["gamma"]:
+        info["gamma"] = ["Linear"]
     gamuts = [""] + info["gamut"]
     gammas = [""] + info["gamma"]
     gu = d.createChoiceParam("gamut", "Gamut")
@@ -406,11 +412,22 @@ def braw_dialog(app, clip, info):
     ga.addOption("As shot (%s)" % (info.get("current gamma") or "clip setting"), "")
     for v in info["gamma"]:
         ga.addOption(v, "")
-    # Natron works scene linear: preselect a linear gamma when the SDK offers one
+    # Natron works scene linear: preselect Linear + ACES AP0 (ACES2065-1 in OCIO)
     for idx, v in enumerate(gammas):
-        if v and "linear" in v.lower():
+        if v and v.lower() == "linear":
             ga.setValue(idx)
             break
+    else:
+        for idx, v in enumerate(gammas):
+            if v and "linear" in v.lower():
+                ga.setValue(idx)
+                break
+    for idx, v in enumerate(gamuts):
+        if v and "aces" in v.lower() and "ap0" in v.lower():
+            gu.setValue(idx)
+            break
+    lut = d.createBooleanParam("keeplut", "Keep the clip's 3D LUT (look baked into the EXR)")
+    lut.setValue(False)
     sc = d.createChoiceParam("scale", "Decode resolution")
     for lab, _ in BRAW_SCALES:
         sc.addOption(lab, "")
@@ -437,7 +454,7 @@ def braw_dialog(app, clip, info):
     return {"clip": g("clip"), "gamut": gamuts[g("gamut")], "gamma": gammas[g("gamma")],
             "scale": BRAW_SCALES[g("scale")][1], "float": g("float"), "outdir": g("outdir"),
             "renum": g("renum"), "start": g("start"), "count": g("count"), "extra": g("extra"),
-            "wait": g("wait")}
+            "wait": g("wait"), "keeplut": g("keeplut")}
 
 
 def braw_args(tool, opts, name):
@@ -454,6 +471,8 @@ def braw_args(tool, opts, name):
         args += ["--gamma", opts["gamma"]]
     if opts["float"]:
         args.append("--float")
+    if opts.get("keeplut"):
+        args.append("--keep-lut")
     if opts["extra"].strip():
         args += shlex.split(opts["extra"].replace("\\", "/"))
     return args

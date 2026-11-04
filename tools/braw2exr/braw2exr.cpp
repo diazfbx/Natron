@@ -108,6 +108,7 @@ struct Options {
     std::string scale = "full";
     std::string gamma, gamut;
     bool useFloat = false;
+    bool keepLut = false;
 };
 
 static void usage()
@@ -117,7 +118,9 @@ static void usage()
         "  braw2exr --list <clip.braw>\n"
         "  braw2exr --input <clip.braw> --output <dir/name.%%04d.exr> [--first-number 1001]\n"
         "           [--start 0] [--count 0] [--scale full|half|quarter|eighth]\n"
-        "           [--gamma \"<name>\"] [--gamut \"<name>\"] [--float]\n");
+        "           [--gamma \"<name>\"] [--gamut \"<name>\"] [--float] [--keep-lut]\n"
+        "  --gamma / --gamut override the clip's colour (e.g. \"Linear\" + \"ACES AP0\");\n"
+        "  then the clip's 3D LUT is disabled unless --keep-lut.\n");
 }
 
 static bool parse(int argc, char** argv, Options& o)
@@ -140,6 +143,7 @@ static bool parse(int argc, char** argv, Options& o)
         else if (a == "--gamma") { if (!next(o.gamma)) return false; }
         else if (a == "--gamut") { if (!next(o.gamut)) return false; }
         else if (a == "--float") { o.useFloat = true; }
+        else if (a == "--keep-lut") { o.keepLut = true; }
         else if (a == "--help" || a == "-h") { return false; }
         else if (o.input.empty() && a[0] != '-') { o.input = a; }
         else { std::fprintf(stderr, "unknown argument: %s\n", a.c_str()); return false; }
@@ -383,6 +387,10 @@ int main(int argc, char** argv)
         if (!o.gamma.empty() && !setAttribute(attrs, blackmagicRawClipProcessingAttributeGamma, o.gamma)) {
             std::fprintf(stderr, "braw2exr: gamma \"%s\" refused (see --list)\n", o.gamma.c_str());
             break;
+        }
+        // Scene-linear output: no look baked in (as the SDK's OpenEXRTranscode sample)
+        if ( (!o.gamma.empty() || !o.gamut.empty()) && !o.keepLut ) {
+            setAttribute(attrs, blackmagicRawClipProcessingAttributePost3DLUTMode, "Disabled");
         }
 
         cb = new Callback();

@@ -73,6 +73,7 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 #include "Global/QtCompat.h"
 
 #include "Engine/CreateNodeArgs.h"
+#include "Engine/EffectInstance.h"   // PLUGINID_NATRON_READ (camera RAW drops)
 #include "Engine/GroupOutput.h"
 #include "Engine/Node.h"
 #include "Engine/NodeGroup.h" // NodesList, NodeCollection
@@ -1996,6 +1997,12 @@ Gui::handleOpenFilesFromUrls(const QList<QUrl>& urls,
             ensureScriptEditorVisible();
         } else {
             std::string readerPluginID = appPTR->getReaderPluginIDForFileType(extLower);
+            // Camera RAW without a decoder (R3D / ARRIRAW / BRAW): a Read
+            // anyway, whose file hook runs the PyPlug converter (ReadNode.cpp).
+            if ( readerPluginID.empty() &&
+                 (extLower == "r3d" || extLower == "ari" || extLower == "arx" || extLower == "braw") ) {
+                readerPluginID = PLUGINID_NATRON_READ;
+            }
             if ( readerPluginID.empty() ) {
                 Dialogs::errorDialog("Reader", "No plugin capable of decoding " + extLower + " was found.");
             } else {
