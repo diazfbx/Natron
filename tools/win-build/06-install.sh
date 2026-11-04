@@ -103,6 +103,10 @@ fi
 # Drop the upstream .git metadata — it shouldn't ship in a deployable
 # bundle (and adds ~100 MB of dead weight).
 rm -rf "$I/Plugins/PyPlugs/.git"
+# Community PyPlugs left out: Shuffle_N (superseded by the Shuffle node's Wire / Classic modes).
+for drop in Channel/Shuffle_N; do
+  if [ -e "$I/Plugins/PyPlugs/$drop" ]; then rm -rf "$I/Plugins/PyPlugs/$drop"; ok "  left out PyPlug $drop"; fi
+done
 
 # --- Licences: Natron's GPL + the vendored MIT libraries ReadGeo links (cgltf, ufbx) ---
 # MIT requires the licence text to accompany binary distributions.
