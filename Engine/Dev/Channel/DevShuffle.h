@@ -71,12 +71,11 @@ public:
     virtual std::string getPluginID() const OVERRIDE FINAL WARN_UNUSED_RETURN
     { return PLUGINID_NATRON_DEVSHUFFLE; }
 
-    // Label DevShuffle -> Shuffle2 -> Shuffle: this is now THE Shuffle (Wire /
-    // Classic modes); the OFX Shuffle is hidden from the menus but still loads
-    // in old projects and PyPlugs. The plugin ID stays
+    // Label DevShuffle -> Shuffle2 (Nuke-style "the modern Shuffle", Wire /
+    // Classic modes), next to the OFX Shuffle. The plugin ID stays
     // fr.inria.built-in.DevShuffle so saved projects load.
     virtual std::string getPluginLabel() const OVERRIDE FINAL WARN_UNUSED_RETURN
-    { return "Shuffle"; }
+    { return "Shuffle2"; }
 
     virtual std::string getPluginDescription() const OVERRIDE FINAL WARN_UNUSED_RETURN;
 

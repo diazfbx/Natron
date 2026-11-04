@@ -55,7 +55,8 @@ NATRON_NAMESPACE_ENTER
 inline bool
 isPluginHiddenFromNodeMenus(const QString& pluginID)
 {
-    return pluginID == QLatin1String("net.sf.openfx.ShufflePlugin");
+    Q_UNUSED(pluginID);
+    return false;   // none for now (the OFX Shuffle is back in the menus, next to Shuffle2)
 }
 
 class PluginGroupNode
