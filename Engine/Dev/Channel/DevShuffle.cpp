@@ -280,6 +280,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("R"));
         k->setName("outputR");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(0);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -288,6 +289,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("G"));
         k->setName("outputG");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(1);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -296,6 +298,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("B"));
         k->setName("outputB");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(2);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -304,6 +307,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("A"));
         k->setName("outputA");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(3);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -339,6 +343,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("R2"));
         k->setName("outputR2");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(-1);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -347,6 +352,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("G2"));
         k->setName("outputG2");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(-1);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -355,6 +361,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("B2"));
         k->setName("outputB2");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(-1);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -363,6 +370,7 @@ DevShuffle::initializeKnobs()
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>(this, tr("A2"));
         k->setName("outputA2");
+        k->setIsMetadataSlave(true); // premult follows the alpha routing
         k->setDefaultValue(-1);
         k->setSecret(true);
         mainPage->addKnob(k);
@@ -746,6 +754,44 @@ DevShuffle::knobChanged(KnobI* k, ValueChangedReasonEnum /*reason*/, ViewSpec /*
     }
 
     return false;
+}
+
+// ==================== Metadata ====================
+
+StatusEnum
+DevShuffle::getPreferredMetadata(NodeMetadata& metadata)
+{
+    const ImagePlaneDesc r1Plane = resolveOutputPlane(_imp->outputLayer, _imp->cachedLayers);
+    if ( !r1Plane.isColorPlane() ) {
+        return eStatusOK;   // other planes: keep the default
+    }
+    if (r1Plane.getNumComponents() < 4) {
+        metadata.setOutputPremult(eImagePremultiplicationOpaque);
+        return eStatusOK;
+    }
+    KnobIntPtr ak = _imp->outputA.lock();
+    const int a = ak ? ak->getValue() : 3;
+    // Is the routed alpha a real alpha channel of B (0..99) or A (100..199)?
+    bool realAlpha = false;
+    if (a >= 0) {
+        const bool fromA = (a >= 100);
+        const int ch = fromA ? a - 100 : a;
+        const std::vector<ImagePlaneDesc>& layers = fromA ? _imp->cachedLayers2 : _imp->cachedLayers;
+        KnobChoicePtr lk = fromA ? _imp->inputLayer2.lock() : _imp->inputLayer.lock();
+        const int li = lk ? lk->getValue() : -1;
+        if ( li >= 0 && li < (int)layers.size() ) {
+            const std::vector<std::string>& chans = layers[li].getChannels();
+            if ( ch >= 0 && ch < (int)chans.size() ) {
+                const std::string& n = chans[ch];
+                realAlpha = (n == "A" || n == "a" || n == "Alpha" || n == "alpha");
+            }
+        }
+    }
+    if (!realAlpha) {
+        metadata.setOutputPremult(a == -3 ? eImagePremultiplicationOpaque      // alpha = 1
+                                          : eImagePremultiplicationUnPremultiplied);
+    }
+    return eStatusOK;
 }
 
 // ==================== RoD ====================

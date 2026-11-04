@@ -125,6 +125,12 @@ private:
 
     virtual void onInputChanged(int inputNo) OVERRIDE FINAL;
 
+    // Output premultiplication follows the alpha routing: a real source alpha
+    // keeps the input's state; no alpha / black / another channel ->
+    // unpremultiplied, white -> opaque (so Grade / ColorCorrect downstream don't
+    // switch (Un)premult on and divide by a zero alpha -> black).
+    virtual StatusEnum getPreferredMetadata(NodeMetadata& metadata) OVERRIDE FINAL WARN_UNUSED_RETURN;
+
     // Post-load hook. Fires after knobs are restored; inputs may not be wired
     // yet. We defer the refresh via QTimer::singleShot so user layers from the
     // <UserComponents> block can land in the output combos.
