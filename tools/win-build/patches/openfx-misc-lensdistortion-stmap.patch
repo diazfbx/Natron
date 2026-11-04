@@ -1,0 +1,26 @@
+diff --git a/Distortion/Distortion.cpp b/Distortion/Distortion.cpp
+index 0dfcd0bb..30979a69 100644
+--- a/Distortion/Distortion.cpp
++++ b/Distortion/Distortion.cpp
+@@ -3157,6 +3157,21 @@ DistortionPlugin::getRegionOfDefinition(const RegionOfDefinitionArguments &args,
+                 }
+             }
+         }
++        // STMap output: the map must cover the whole frame (an STMap node reads
++        // every pixel of it), so the RoD is never smaller than the input format.
++        // Without this, Distort shrank the RoD to the distorted frame and the
++        // map had black borders.
++        if ( _outputMode && ( (OutputModeEnum)_outputMode->getValueAtTime(time) == eOutputModeSTMap ) ) {
++            OfxRectI fmt;
++            double fmtPar = 1.;
++            getInputClipFormatI(_srcClip, time, &fmtPar, &fmt);
++            if ( !Coords::rectIsEmpty(fmt) ) {
++                rod.x1 = (std::min)(rod.x1, fmt.x1 * fmtPar);
++                rod.x2 = (std::max)(rod.x2, fmt.x2 * fmtPar);
++                rod.y1 = (std::min)(rod.y1, (double)fmt.y1);
++                rod.y2 = (std::max)(rod.y2, (double)fmt.y2);
++            }
++        }
+         return true;
+         //return false;     // use source RoD
+         break;
