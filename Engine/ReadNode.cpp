@@ -230,7 +230,7 @@ public:
     NodePtr embeddedPlugin;
     std::list<KnobSerializationPtr> genericKnobsSerialization;
     KnobFileWPtr inputFileKnob;
-    bool r3dMessageShown = false;   // R3D placeholder message to clear once the EXR arrive
+    bool r3dMessageShown = false;   // camera RAW (R3D/ARRIRAW/BRAW) placeholder message, cleared once the EXR arrive
 
     //Thiese are knobs owned by the ReadNode and not the Reader
     KnobChoiceWPtr pluginSelectorKnob;
@@ -665,11 +665,15 @@ ReadNodePrivate::createReadNode(bool throwErrors,
     QString qpattern = QString::fromUtf8( filename.c_str() );
     std::string ext = QtCompat::removeFileExtension(qpattern).toLower().toStdString();
 
-    // RED .R3D: no decoder (closed format). The R3D_Import PyPlug converts the
-    // clip with RED's REDline tool and then sets this Read's filename to the
-    // EXR sequence. Here: hand the file to its Python hook (if installed) and
-    // keep a placeholder reader meanwhile, without raising "no decoder".
-    if (ext == "r3d") {
+    // Camera RAW without a decoder in Natron (closed formats): RED .R3D,
+    // ARRIRAW .ari/.arx, Blackmagic RAW .braw. A PyPlug converts the clip to
+    // an OpenEXR sequence with the vendor's / a helper command-line tool
+    // (R3D_Import: REDline, CameraRAW_Import: art-cmd / braw2exr) and then
+    // sets this Read's filename to the EXR. Here: hand the file to its Python
+    // hook (if installed) and keep a placeholder reader, without "no decoder".
+    const bool isR3D = (ext == "r3d");
+    const bool isCamRaw = (ext == "ari" || ext == "arx" || ext == "braw");
+    if (isR3D || isCamRaw) {
         throwErrors = false;
         std::string path = filename;
         std::string escaped;
@@ -682,23 +686,38 @@ ReadNodePrivate::createReadNode(bool throwErrors,
                 escaped += path[i];
             }
         }
+        const std::string hook = isR3D ? "r3d_on_read" : "camraw_on_read";
+        const std::string plugName = isR3D ? "R3D_Import" : "CameraRAW_Import";
         const std::string script =
             "import __main__\n"
-            "if not hasattr(__main__, 'r3d_on_read'):\n"
-            "    raise RuntimeError('R3D_Import PyPlug not loaded')\n"
-            "__main__.r3d_on_read('" + escaped + "')\n";
+            "if not hasattr(__main__, '" + hook + "'):\n"
+            "    raise RuntimeError('" + plugName + " PyPlug not loaded')\n"
+            "__main__." + hook + "('" + escaped + "')\n";
+        QString what, tool;
+        if (isR3D) {
+            what = QString::fromUtf8("R3D");
+            tool = QString::fromUtf8("REDline");
+        } else if (ext == "braw") {
+            what = QString::fromUtf8("Blackmagic RAW");
+            tool = QString::fromUtf8("braw2exr");
+        } else {
+            what = QString::fromUtf8("ARRIRAW");
+            tool = QString::fromUtf8("art-cmd (ARRI Reference Tool)");
+        }
         std::string err;
         if ( !NATRON_PYTHON_NAMESPACE::interpretPythonScript(script, &err, NULL) || !err.empty() ) {
             _publicInterface->setPersistentMessage( eMessageTypeError,
-                tr("R3D: the R3D_Import PyPlug (REDline) is needed to read .R3D files. %1")
+                tr("%1: the %2 PyPlug (%3) is needed to read these files. %4")
+                .arg(what).arg( QString::fromUtf8( plugName.c_str() ) ).arg(tool)
                 .arg( QString::fromUtf8( err.c_str() ) ).toStdString() );
         } else {
             _publicInterface->setPersistentMessage( eMessageTypeWarning,
-                tr("R3D: converting to EXR with REDline, the Read switches to the EXR sequence when it is done.").toStdString() );
+                tr("%1: converting to EXR with %2, the Read switches to the EXR sequence when it is done.")
+                .arg(what).arg(tool).toStdString() );
         }
         r3dMessageShown = true;
     } else if (r3dMessageShown) {
-        _publicInterface->clearPersistentMessage(false);   // the EXR sequence replaced the .R3D
+        _publicInterface->clearPersistentMessage(false);   // the EXR sequence replaced the camera RAW clip
         r3dMessageShown = false;
     }
     std::string readerPluginID;

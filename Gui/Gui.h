@@ -602,6 +602,9 @@ public Q_SLOTS:
     void createTemplateFromFile();
     // File > Import R3D (REDline): runs the R3D_Import PyPlug's r3d_import().
     void importR3DClip();
+    // File > Import ARRIRAW / Blackmagic RAW: CameraRAW_Import PyPlug.
+    void importArriClip();
+    void importBrawClip();
     void createTemplateMegascansAsset();
 
     void autoSave();

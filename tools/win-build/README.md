@@ -172,3 +172,14 @@ without re-copying the DLLs, Python, OCIO configs and OFX plugins.
 `bash quick.sh --no-build` only refreshes the install (PyPlug / theme / template
 edits). Use `build-all.sh` when `tools/win-build` itself changed (new patches or
 packages), for the OFX plugins (openfx-misc, openfx-io...) or Cycles.
+
+## Blackmagic RAW helper (optional)
+
+The BRAW import (*File → Import Blackmagic RAW*) needs `braw2exr.exe`, built
+once against Blackmagic's free Blackmagic RAW SDK (not in this repo):
+
+```bash
+bash tools/braw2exr/build.sh   # copies braw2exr.exe to S:/Natron-install/bin
+```
+
+ARRIRAW only needs ARRI's free *ART CMD* (`art-cmd.exe`) installed.

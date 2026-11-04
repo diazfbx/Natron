@@ -3529,10 +3529,15 @@ AppManager::getSupportedReaderFileFormats(std::vector<std::string>* formats) con
     for (IOPluginsMap::const_iterator it = readersForFormat.begin(); it != readersForFormat.end(); ++it, ++i) {
         (*formats)[i] = it->first;
     }
-    // RED .R3D: no decoder, but the Read accepts it (converted to EXR through
-    // REDline by the R3D_Import PyPlug), so file dialogs and drag & drop show it.
-    if ( std::find(formats->begin(), formats->end(), std::string("r3d")) == formats->end() ) {
-        formats->push_back("r3d");
+    // Camera RAW without a decoder, but the Read accepts them (converted to
+    // EXR by a PyPlug: R3D_Import through REDline, CameraRAW_Import through
+    // art-cmd for ARRIRAW and braw2exr for Blackmagic RAW), so file dialogs
+    // and drag & drop show them.
+    static const char* const camRaw[] = { "r3d", "ari", "arx", "braw" };
+    for (size_t k = 0; k < sizeof(camRaw) / sizeof(camRaw[0]); ++k) {
+        if ( std::find( formats->begin(), formats->end(), std::string(camRaw[k]) ) == formats->end() ) {
+            formats->push_back(camRaw[k]);
+        }
     }
 }
 

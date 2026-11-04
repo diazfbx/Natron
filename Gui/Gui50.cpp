@@ -2079,6 +2079,35 @@ Gui::importR3DClip()
     }
 }
 
+static void
+runCameraRawImport(const char* function, const QString& title)
+{
+    const std::string fn(function);
+    const std::string script =
+        "import __main__\n"
+        "if not hasattr(__main__, '" + fn + "'):\n"
+        "    raise RuntimeError('CameraRAW_Import PyPlug not loaded')\n"
+        "__main__." + fn + "()\n";
+    std::string err;
+    if ( !NATRON_PYTHON_NAMESPACE::interpretPythonScript(script, &err, NULL) || !err.empty() ) {
+        Dialogs::errorDialog( title.toStdString(),
+                              Gui::tr("This import needs the CameraRAW_Import PyPlug (Plugins/PyPlugs/CameraRAW_Import).\n%1")
+                              .arg( QString::fromUtf8( err.c_str() ) ).toStdString() );
+    }
+}
+
+void
+Gui::importArriClip()
+{
+    runCameraRawImport( "camraw_import_arri", tr("Import ARRIRAW") );
+}
+
+void
+Gui::importBrawClip()
+{
+    runCameraRawImport( "camraw_import_braw", tr("Import Blackmagic RAW") );
+}
+
 void
 Gui::createTemplateFromFile()
 {
