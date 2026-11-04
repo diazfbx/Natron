@@ -6,7 +6,7 @@
 >
 > **Why this fork.** I really appreciate the approach of building pipelines on standalone, open-source software instead of paying for overpriced subscriptions. Niik-l's work turns Natron into a genuinely usable tool for VFX and matchmove work, and this fork adds the few things my own pipeline needed, in the same spirit: free, open, and installable by anyone. Everything here stays under Natron's GPL-2.0 licence, and any of these changes is welcome upstream.
 >
-> **What this fork adds** (branch [`fix/wireframe-polygon-edges`](https://github.com/diazfbx/Natron/tree/fix/wireframe-polygon-edges), one commit per feature so each can be picked separately):
+> **What this fork adds** (branch [`diazfbx`](https://github.com/diazfbx/Natron/tree/diazfbx), one commit per feature so each can be picked separately):
 >
 > | Feature | What it does |
 > |---|---|
@@ -25,7 +25,7 @@
 > **Build it** (Windows, in the *MSYS2 UCRT64* terminal, ~15 GB free on the build drive):
 >
 > ```bash
-> git clone --branch fix/wireframe-polygon-edges https://github.com/diazfbx/Natron.git
+> git clone --branch diazfbx https://github.com/diazfbx/Natron.git
 > cd Natron/tools/win-build
 > bash build-all.sh
 > ```
