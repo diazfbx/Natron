@@ -19,6 +19,8 @@ apply_patch openfx-io   "$PATCHES/openfx-io.patch"
 # that already carries openfx-io.patch.
 apply_patch openfx-io   "$PATCHES/openfx-io-ffmpeg.patch"
 apply_patch openfx-misc "$PATCHES/openfx-misc.patch"
+# Reformat: Nuke layout (center/flip/flop/turn next to Resize Type; Preserve BBox after Black outside)
+apply_patch openfx-misc "$PATCHES/openfx-misc-reformat-layout.patch"
 apply_patch openfx-arena "$PATCHES/openfx-arena.patch"
 
 if [ "${WITH_CYCLES:-1}" = "1" ]; then

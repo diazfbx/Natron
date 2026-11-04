@@ -1,0 +1,85 @@
+diff --git a/Reformat/Reformat.cpp b/Reformat/Reformat.cpp
+index 6b5b00c5..4d5289df 100644
+--- a/Reformat/Reformat.cpp
++++ b/Reformat/Reformat.cpp
+@@ -1016,6 +1016,7 @@ ReformatPluginFactory<majorVersion>::describeInContext(ImageEffectDescriptor &de
+         param->setDefault( (int)eResizeWidth );
+         param->setAnimates(false);
+         desc.addClipPreferencesSlaveParam(*param);
++        param->setLayoutHint(eLayoutHintNoNewLine, 1); // Nuke layout: center/flip/flop/turn on the same line
+         if (page) {
+             page->addChild(*param);
+         }
+@@ -1075,6 +1076,63 @@ ReformatPluginFactory<majorVersion>::describeInContext(ImageEffectDescriptor &de
+         }
+     }
+ 
++    // filter, clamp, black outside, preserve bounding box -- one line, as in Nuke
++    // (same parameters as ofxsFilterDescribeParamsInterpolate2D, with black
++    // outside kept on the line so Preserve BBox follows it).
++    {
++        ChoiceParamDescriptor* param = desc.defineChoiceParam(kParamFilterType);
++        param->setLabel(kParamFilterTypeLabel);
++        param->setHint(kParamFilterTypeHint);
++        assert(param->getNOptions() == eFilterImpulse);
++        param->appendOption(kFilterImpulse);
++        assert(param->getNOptions() == eFilterBox);
++        param->appendOption(kFilterBox);
++        assert(param->getNOptions() == eFilterBilinear);
++        param->appendOption(kFilterBilinear);
++        assert(param->getNOptions() == eFilterCubic);
++        param->appendOption(kFilterCubic);
++        assert(param->getNOptions() == eFilterKeys);
++        param->appendOption(kFilterKeys);
++        assert(param->getNOptions() == eFilterSimon);
++        param->appendOption(kFilterSimon);
++        assert(param->getNOptions() == eFilterRifman);
++        param->appendOption(kFilterRifman);
++        assert(param->getNOptions() == eFilterMitchell);
++        param->appendOption(kFilterMitchell);
++        assert(param->getNOptions() == eFilterParzen);
++        param->appendOption(kFilterParzen);
++        assert(param->getNOptions() == eFilterNotch);
++        param->appendOption(kFilterNotch);
++        param->setDefault(eFilterCubic);
++        param->setAnimates(true);
++        param->setLayoutHint(eLayoutHintNoNewLine, 1);
++        if (page) {
++            page->addChild(*param);
++        }
++    }
++    {
++        BooleanParamDescriptor* param = desc.defineBooleanParam(kParamFilterClamp);
++        param->setLabel(kParamFilterClampLabel);
++        param->setHint(kParamFilterClampHint);
++        param->setDefault(false);
++        param->setAnimates(true);
++        param->setLayoutHint(eLayoutHintNoNewLine, 1);
++        if (page) {
++            page->addChild(*param);
++        }
++    }
++    {
++        BooleanParamDescriptor* param = desc.defineBooleanParam(kParamFilterBlackOutside);
++        param->setLabel(kParamFilterBlackOutsideLabel);
++        param->setHint(kParamFilterBlackOutsideHint);
++        param->setDefault(false);
++        param->setAnimates(true);
++        param->setLayoutHint(eLayoutHintNoNewLine, 1);
++        if (page) {
++            page->addChild(*param);
++        }
++    }
++
+     // Preserve bounding box
+     {
+         BooleanParamDescriptor* param = desc.defineBooleanParam(kParamPreserveBoundingBox);
+@@ -1088,8 +1146,6 @@ ReformatPluginFactory<majorVersion>::describeInContext(ImageEffectDescriptor &de
+         }
+     }
+ 
+-    // clamp, filter, black outside
+-    ofxsFilterDescribeParamsInterpolate2D(desc, page, /*blackOutsideDefault*/ false);
+ } // ReformatPluginFactory::describeInContext
+ 
+ template<unsigned int majorVersion>
