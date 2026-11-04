@@ -348,9 +348,11 @@ def r3d_poll():
                 left.append(job)
                 continue
             _RUNNING.pop(job["outdir"], None)
-            if rc != 0:
+            if rc != 0 and not _wrote_frames(job):
                 _message(_failure_text(job["name"], rc, job.get("log")), error=True)
                 continue
+            if rc != 0:
+                _log("REDline exited with code %d after writing the frames (crash on exit): loading them" % rc)
             if not _finish_job(job):
                 _message("REDline finished %s but no EXR was found in %s." % (job["name"], job["outdir"]), error=True)
             else:
@@ -421,6 +423,8 @@ def _dialog(app, clip):
     x.setValue("")
     w = d.createBooleanParam("wait", "Wait for the conversion (Natron is blocked)")
     w.setValue(False)
+    v = d.createBooleanParam("console", "Show the REDline window (progress)")
+    v.setValue(True)
     d.refreshUserParamsGUI()
     ok = d.exec() if hasattr(d, "exec") else d.exec_()
     if not ok:
@@ -437,6 +441,7 @@ def _dialog(app, clip):
         "rmd": d.getParam("rmd").getValue(),
         "extra": d.getParam("extra").getValue(),
         "wait": d.getParam("wait").getValue(),
+        "console": d.getParam("console").getValue(),
     }
 
 
@@ -447,6 +452,21 @@ def _get_redline(cfg):
             return None
         redline = ask_redline(cfg)
     return redline
+
+
+def _wrote_frames(job):
+    """REDline (recent builds) can crash while quitting, after 'Batch Job
+    Complete': the frames are there, so the conversion counts as done."""
+    if not _sequence_pattern(job["outdir"], job["name"]):
+        return False
+    log = job.get("log")
+    if log and os.path.isfile(log):
+        try:
+            with open(log, "r", errors="replace") as fh:
+                return "batch job complete" in fh.read().lower()
+        except Exception:
+            pass
+    return True   # no log (REDline window mode): the EXR are there
 
 
 def _finish_job(job):
@@ -501,20 +521,25 @@ def start_conversion(clip, reads=None):
             logf.flush()
             res = subprocess.run(args, stdout=logf, stderr=subprocess.STDOUT,
                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        if res.returncode != 0:
+        if res.returncode != 0 and not _wrote_frames(job):
             _message(_failure_text(job["name"], res.returncode, logpath), error=True)
             return
         if not _finish_job(job):
             _message("REDline finished but no EXR was found in " + outdir, error=True)
         return
-    # Background: REDline's output goes to <outdir>/redline.log (shown if it fails).
+    # Background: REDline's own window shows the progress, or (window off)
+    # its output goes to <outdir>/redline.log, shown if it fails.
     try:
-        logf = open(logpath, "w")
-        logf.write(_cmdline(args) + "\n\n")
-        logf.flush()
-        proc = subprocess.Popen(args, stdout=logf, stderr=subprocess.STDOUT,
-                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        logf.close()   # the child keeps its own handle
+        if opts.get("console", True):
+            job["log"] = None
+            proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        else:
+            logf = open(logpath, "w")
+            logf.write(_cmdline(args) + "\n\n")
+            logf.flush()
+            proc = subprocess.Popen(args, stdout=logf, stderr=subprocess.STDOUT,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            logf.close()   # the child keeps its own handle
     except OSError:
         cfg.pop("redline", None)
         _save(cfg)
@@ -528,11 +553,11 @@ def start_conversion(clip, reads=None):
     cfg["pending"] = [j for j in cfg["pending"] if j["outdir"] != outdir] + [job]
     _save(cfg)
     what = "The Read switches to the EXR sequence" if reads else "The Read is created"
+    where = "see the REDline window" if job["log"] is None else "log: " + logpath
     if _schedule_poll():
-        _message("Conversion started in the background (log: %s).\n%s automatically when it is finished."
-                 % (logpath, what))
+        _message("Conversion started (%s).\n%s automatically when it is finished." % (where, what))
     else:
-        _message("Conversion started in the background (log: %s).\n" % logpath +
+        _message("Conversion started (%s).\n" % where +
                  "Natron cannot watch it (needs this fork's callLater): load the EXR from " + outdir + " when it is done.")
 
 
