@@ -144,6 +144,18 @@ if [ -d "$OCIO_EXTRA" ]; then
   cp "$OCIO_EXTRA/LICENSE-OpenColorIO.txt" "$I/Licenses/OpenColorIO-configs-LICENSE.txt"
 fi
 
+# --- Themes (stylesheets) at the install root: <Natron>/Themes/<name>/<name>.qss ---
+# The Themes menu PyPlug (Nuketron_Theme) comes with the PyPlugs copy above.
+THEMES_SRC="$NATRON_ROOT/Natron/Gui/Resources/Themes"
+if [ -d "$THEMES_SRC" ]; then
+  log "Themes (Gui/Resources/Themes)"
+  mkdir -p "$I/Themes"; cp -r "$THEMES_SRC/." "$I/Themes/"   # keeps themes you added yourself
+  ok "  $(ls -d "$I/Themes"/*/ 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
+fi
+if [ ! -f "$I/Plugins/PyPlugs/Nuketron_Theme/initGui.py" ] && [ -d "$NATRON_ROOT/Natron/Gui/Resources/PyPlugs/Nuketron_Theme" ]; then
+  cp -r "$NATRON_ROOT/Natron/Gui/Resources/PyPlugs/Nuketron_Theme" "$I/Plugins/PyPlugs/"
+fi
+
 # --- Strip debug symbols from the staged binaries (build-qt6 keeps them) ---
 if [ "${STRIP_INSTALL:-1}" = "1" ]; then
   log "Stripping debug symbols from the staged binaries (STRIP_INSTALL=1)"
