@@ -688,11 +688,19 @@ ReadNodePrivate::createReadNode(bool throwErrors,
         }
         const std::string hook = isR3D ? "r3d_on_read" : "camraw_on_read";
         const std::string plugName = isR3D ? "R3D_Import" : "CameraRAW_Import";
+        // The Read's own name too: the PyPlug uses this Read (no second one)
+        std::string readName;
+        if ( _publicInterface->getNode() ) {
+            readName = _publicInterface->getNode()->getFullyQualifiedName();
+        }
         const std::string script =
             "import __main__\n"
             "if not hasattr(__main__, '" + hook + "'):\n"
             "    raise RuntimeError('" + plugName + " PyPlug not loaded')\n"
-            "__main__." + hook + "('" + escaped + "')\n";
+            "try:\n"
+            "    __main__." + hook + "('" + escaped + "', '" + readName + "')\n"
+            "except TypeError:\n"
+            "    __main__." + hook + "('" + escaped + "')\n";
         QString what, tool;
         if (isR3D) {
             what = QString::fromUtf8("R3D");

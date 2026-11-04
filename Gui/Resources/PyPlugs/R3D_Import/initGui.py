@@ -707,10 +707,10 @@ def _norm(p):
     return os.path.normcase(os.path.normpath(p)) if p else ""
 
 
-def r3d_on_read(path):
+def r3d_on_read(path, read_name=""):
     """Called by Natron's Read when its file is a .R3D (Engine/ReadNode.cpp).
     Runs from inside the Read's parameter change: defer the dialog."""
-    _READ_REQUESTS.append(path)
+    _READ_REQUESTS.append((path, read_name))
     try:
         import NatronGui
         if hasattr(NatronGui.natron, "callLater"):
@@ -725,14 +725,20 @@ def r3d_process_reads():
     try:
         app = _app()
         while _READ_REQUESTS:
-            path = _READ_REQUESTS.pop(0)
+            path, read_name = _READ_REQUESTS.pop(0)
             reads = []
+            if read_name:                   # the Read that was given the file
+                for cand in (read_name, read_name.split(".")[-1]):
+                    if app.getNode(cand) is not None:
+                        reads.append(cand)
+                        break
             for node in app.getChildren():
                 try:
                     if node.getPluginID() != "fr.inria.built-in.Read":
                         continue
                     p = node.getParam("filename")
-                    if p is not None and _norm(p.getValue()) == _norm(path):
+                    if p is not None and _norm(p.getValue()) == _norm(path) \
+                            and node.getScriptName() not in [r.split(".")[-1] for r in reads]:
                         reads.append(node.getScriptName())
                 except Exception:
                     continue
