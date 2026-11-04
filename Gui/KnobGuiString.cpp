@@ -401,6 +401,9 @@ KnobGuiString::createWidget(QHBoxLayout* layout)
         QObject::connect( _textEdit, SIGNAL(editingFinished()), this, SLOT(onTextChanged()) );
         // layout->parentWidget()->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
         _textEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        if (knob->getMultiLineMinimumHeight() > 0) {
+            _textEdit->setMinimumHeight( TO_DPIY( knob->getMultiLineMinimumHeight() ) );
+        }
 
         ///set the copy/link actions in the right click menu
         enableRightClickMenu(_textEdit, 0);

@@ -98,6 +98,8 @@ struct CryptomattePrivate
     KnobBoolWPtr preview;
     KnobBoolWPtr matteOnly;
     KnobBoolWPtr invert;
+    KnobChoiceWPtr matteOutput;   // 0 alpha, 1 red, 2 green, 3 blue
+    KnobBoolWPtr unpremultiply;
     KnobButtonWPtr reloadManifest;
     KnobStringWPtr info;
 
@@ -184,14 +186,47 @@ Cryptomatte::isHostChannelSelectorSupported(bool*, bool*, bool*, bool*) const
 void
 Cryptomatte::initializeKnobs()
 {
+    // Layout follows Nuke's Cryptomatte panel: layer, preview, then the
+    // picker / matte list block, then the matte output, then the manifest.
     KnobPagePtr page = AppManager::createKnob<KnobPage>(this, tr("Cryptomatte"));
 
     {
-        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Layer"));
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Layer Selection"));
         k->setName("cryptoLayer"); k->setAnimationEnabled(false);
         k->setHintToolTip(tr("Cryptomatte layer to key: CryptoObject, CryptoMaterial, CryptoAsset... "
                               "Filled from the input's layers named <name>00, <name>01, ..."));
         page->addKnob(k); _imp->layer = k;
+    }
+    {
+        KnobSeparatorPtr sep = AppManager::createKnob<KnobSeparator>(this, std::string());
+        sep->setName("sepPreview");
+        page->addKnob(sep);
+    }
+    {
+        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Preview Mattes"));
+        k->setName("preview"); k->setDefaultValue(true); k->setAnimationEnabled(false);
+        k->setAddNewLine(false);
+        k->setHintToolTip(tr("RGB shows every ID in a random colour, the selected ones highlighted. "
+                              "Off: RGB passes the source through. The matte goes to Matte Output either way."));
+        page->addKnob(k); _imp->preview = k;
+    }
+    {
+        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Matte Only"));
+        k->setName("matteOnly"); k->setDefaultValue(false); k->setAnimationEnabled(false);
+        k->setAddNewLine(false);
+        k->setHintToolTip(tr("Write the matte to R, G, B and A (overrides Preview Mattes)."));
+        page->addKnob(k); _imp->matteOnly = k;
+    }
+    {
+        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Invert"));
+        k->setName("invert"); k->setDefaultValue(false); k->setAnimationEnabled(false);
+        k->setHintToolTip(tr("Invert the matte."));
+        page->addKnob(k); _imp->invert = k;
+    }
+    {
+        KnobSeparatorPtr sep = AppManager::createKnob<KnobSeparator>(this, std::string());
+        sep->setName("sepMatteList");
+        page->addKnob(sep);
     }
     {
         KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Picker"));
@@ -210,9 +245,11 @@ Cryptomatte::initializeKnobs()
     {
         KnobStringPtr k = AppManager::createKnob<KnobString>(this, tr("Matte List"));
         k->setName("matteList"); k->setAnimationEnabled(false);
-        k->setHintToolTip(tr("Selected names, comma-separated (Nuke syntax): name, \"name, with comma\", "
-                              "wildcards * and ? (e.g. rock_*), <float> for a raw ID. Names are resolved "
-                              "through the manifest, or hashed (MurmurHash3) when there is none."));
+        k->setAsMultiLine();
+        k->setMultiLineMinimumHeight(140);   // room for a long list, one name per line
+        k->setHintToolTip(tr("Selected names, one per line (commas work too, Nuke syntax): name, "
+                              "\"name, with comma\", wildcards * and ? (e.g. rock_*), <float> for a raw ID. "
+                              "Names are resolved through the manifest, or hashed (MurmurHash3) when there is none."));
         page->addKnob(k); _imp->matteList = k;
     }
     {
@@ -222,27 +259,32 @@ Cryptomatte::initializeKnobs()
         page->addKnob(k); _imp->clearList = k;
     }
     {
-        KnobSeparatorPtr sep = AppManager::createKnob<KnobSeparator>(this, tr("Output"));
+        KnobSeparatorPtr sep = AppManager::createKnob<KnobSeparator>(this, std::string());
+        sep->setName("sepOutput");
         page->addKnob(sep);
     }
     {
-        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Preview"));
-        k->setName("preview"); k->setDefaultValue(true); k->setAnimationEnabled(false);
-        k->setHintToolTip(tr("RGB shows every ID in a random colour, the selected ones highlighted. "
-                              "Off: RGB passes the source through. Alpha is the matte either way."));
-        page->addKnob(k); _imp->preview = k;
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Matte Output"));
+        k->setName("matteOutput"); k->setAnimationEnabled(false);
+        std::vector<ChoiceOption> e;
+        e.push_back(ChoiceOption("rgba.alpha", "", "Matte in alpha (RGB: preview or source)"));
+        e.push_back(ChoiceOption("rgba.red", "", "Matte in red (alpha: source alpha)"));
+        e.push_back(ChoiceOption("rgba.green", "", "Matte in green (alpha: source alpha)"));
+        e.push_back(ChoiceOption("rgba.blue", "", "Matte in blue (alpha: source alpha)"));
+        k->populateChoices(e);
+        k->setDefaultValue(0);
+        k->setAddNewLine(false);
+        k->setHintToolTip(tr("Channel the matte is written to. The other channels carry the preview / "
+                              "source colour and the source alpha."));
+        page->addKnob(k); _imp->matteOutput = k;
     }
     {
-        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Matte Only"));
-        k->setName("matteOnly"); k->setDefaultValue(false); k->setAnimationEnabled(false);
-        k->setHintToolTip(tr("Write the matte to R, G, B and A (overrides Preview)."));
-        page->addKnob(k); _imp->matteOnly = k;
-    }
-    {
-        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Invert"));
-        k->setName("invert"); k->setDefaultValue(false); k->setAnimationEnabled(false);
-        k->setHintToolTip(tr("Invert the matte."));
-        page->addKnob(k); _imp->invert = k;
+        KnobBoolPtr k = AppManager::createKnob<KnobBool>(this, tr("Unpremultiply"));
+        k->setName("unpremultiply"); k->setDefaultValue(false); k->setAnimationEnabled(false);
+        k->setHintToolTip(tr("Divide the matte by the source alpha (Cryptomatte coverage is "
+                              "premultiplied): use it to key objects with soft / semi-transparent edges "
+                              "before a premultiplied comp."));
+        page->addKnob(k); _imp->unpremultiply = k;
     }
     {
         KnobSeparatorPtr sep = AppManager::createKnob<KnobSeparator>(this, tr("Manifest"));
@@ -483,6 +525,8 @@ Cryptomatte::render(const RenderActionArgs& args)
     const bool preview = _imp->preview.lock()->getValue();
     const bool matteOnly = _imp->matteOnly.lock()->getValue();
     const bool invert = _imp->invert.lock()->getValue();
+    const int matteOut = _imp->matteOutput.lock() ? _imp->matteOutput.lock()->getValue() : 0;
+    const bool unpremult = _imp->unpremultiply.lock() && _imp->unpremultiply.lock()->getValue();
 
     // Source RGBA (pass-through colour).
     RectI srcRoi;
@@ -547,16 +591,17 @@ Cryptomatte::render(const RenderActionArgs& args)
                         }
                     }
                 }
-                matte = std::min(1.f, std::max(0.f, matte));
-                if (invert) matte = 1.f - matte;
-
                 float rgb[3] = { 0.f, 0.f, 0.f };
                 float srcA = 1.f;
                 const float* s = NULL;
                 if (srcRa && srcBounds.contains(x, y)) s = (const float*)srcRa->pixelAt(x, y);
                 if (s && srcNComp >= 3) { rgb[0] = s[0]; rgb[1] = s[1]; rgb[2] = s[2]; }
                 if (s && srcNComp >= 4) srcA = s[3];
-                (void)srcA;
+
+                // Coverage is premultiplied: Unpremultiply divides by the source alpha.
+                if (unpremult && srcA > 1e-6f) matte /= srcA;
+                matte = std::min(1.f, std::max(0.f, matte));
+                if (invert) matte = 1.f - matte;
 
                 if (matteOnly) {
                     rgb[0] = rgb[1] = rgb[2] = matte;
@@ -569,7 +614,8 @@ Cryptomatte::render(const RenderActionArgs& args)
                 }
 
                 if (outNComp >= 3) { dst[0] = rgb[0]; dst[1] = rgb[1]; dst[2] = rgb[2]; }
-                if (outNComp >= 4) dst[3] = matte;
+                if (outNComp >= 4) dst[3] = (matteOut == 0 || matteOnly) ? matte : srcA;
+                if (outNComp >= 3 && matteOut >= 1 && matteOut <= 3) dst[matteOut - 1] = matte;
                 else if (outNComp == 1) dst[0] = matte;
             }
         }

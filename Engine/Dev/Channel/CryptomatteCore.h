@@ -343,7 +343,7 @@ inline std::string formatMatteList(const std::vector<std::string>& entries)
 {
     std::string out;
     for (size_t i = 0; i < entries.size(); ++i) {
-        if (i) out += ", ";
+        if (i) out += "\n";   // one entry per line (the parser also takes commas)
         const std::string& e = entries[i];
         const bool isId = e.size() > 2 && e.front() == '<' && e.back() == '>';
         if (!isId && needsQuotes(e)) {

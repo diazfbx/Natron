@@ -789,6 +789,17 @@ public:
         return _multiLine;
     }
 
+    // Minimum height (pixels, before DPI scaling) of a multi-line text box; 0 = default.
+    void setMultiLineMinimumHeight(int h)
+    {
+        _multiLineMinHeight = h;
+    }
+
+    int getMultiLineMinimumHeight() const
+    {
+        return _multiLineMinHeight;
+    }
+
     bool usesRichText() const
     {
         return _richText;
@@ -840,6 +851,7 @@ private:
 private:
     static const std::string _typeNameStr;
     bool _multiLine;
+    int _multiLineMinHeight = 0;
     bool _richText;
     bool _customHtmlText;
     bool _isLabel;
