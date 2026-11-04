@@ -1,7 +1,7 @@
 3DE LENS IMPORT pour Natron
 ===========================
 
-Ajoute un menu "3DE > Import distortion (.nk)" dans Natron. Il lit les nodes de distorsion
+Ajoute un menu "3DE > Import Lens Distortion LDE4 (.nk)" dans Natron. Il lit les nodes de distorsion
 exportes par 3DEqualizer pour Nuke (fichier .nk, script "Export Nuke Distortion Nodes") et cree
 le node LensDistortion de Natron avec le meme modele, la meme direction et les memes valeurs
 (animations comprises).
@@ -26,7 +26,7 @@ puis redemarrer Natron. Le menu "3DE" apparait dans la barre du haut.
 
 UTILISATION
 -----------
-- Selectionner le node a corriger (ex. le Read de la plate), puis menu 3DE > Import distortion (.nk).
+- Selectionner le node a corriger (ex. le Read de la plate), puis menu 3DE > Import Lens Distortion LDE4 (.nk).
 - Choisir le fichier .nk : un node LensDistortion est cree et branche sous le node selectionne.
 - Si l'image deborde, cocher "Black outside" dans le node pour avoir du noir comme dans Nuke.
 

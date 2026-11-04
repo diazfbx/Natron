@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""3DE Lens Import pour Natron - menu "3DE > Import distortion (.nk)".
+"""3DE Lens Import pour Natron - menu "3DE > Import Lens Distortion LDE4 (.nk)".
 
 Installation : copier le dossier 3DE_Lens_Import dans <Natron>/Plugins/PyPlugs (ou dans ~/.Natron),
 puis redemarrer Natron. Natron execute automatiquement ce initGui.py au demarrage.
@@ -412,7 +412,7 @@ def _tde_register():
     if getattr(NatronGui, "_tde_lens_menu_done", False):
         return
     # pas de raccourci : il demanderait PySide, qui fait planter certaines versions de Natron
-    NatronGui.natron.addMenuCommand("3DE/Import distortion (.nk)", "tde_lens_import_nk")
+    NatronGui.natron.addMenuCommand("3DE/Import Lens Distortion LDE4 (.nk)", "tde_lens_import_nk")
     NatronGui._tde_lens_menu_done = True
 
 
