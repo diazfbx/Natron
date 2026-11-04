@@ -175,7 +175,7 @@ packages), for the OFX plugins (openfx-misc, openfx-io...) or Cycles.
 
 ## Blackmagic RAW helper (optional)
 
-The BRAW import (*File → Import Blackmagic RAW*) needs `braw2exr.exe`, built
+The BRAW import (*File → Import BRAW (Blackmagic)*) needs `braw2exr.exe`, built
 once against Blackmagic's free Blackmagic RAW SDK (not in this repo):
 
 ```bash

@@ -2,7 +2,7 @@
 
 Small command-line tool that converts a Blackmagic RAW clip (`.braw`) to an
 OpenEXR sequence (RGB, 16-bit half or 32-bit float, uncompressed). The Natron
-fork's **File > Import Blackmagic RAW (braw2exr)...** and Read nodes given a
+fork's **File > Import BRAW (Blackmagic)...** and Read nodes given a
 `.braw` call it, then load the EXR.
 
 Natron itself never links Blackmagic code: braw2exr is a separate program

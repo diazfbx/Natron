@@ -668,13 +668,13 @@ Gui::createMenuActions()
 
         // ARRIRAW / Blackmagic RAW: same idea through the CameraRAW_Import PyPlug
         // (ARRI's art-cmd, and braw2exr built against the Blackmagic RAW SDK).
-        QAction* importArri = new QAction(tr("Import ARRIRAW (ARRI Reference Tool)..."), this);
+        QAction* importArri = new QAction(tr("Import ARRIRAW (ARRI)..."), this);
         importArri->setStatusTip( tr("Convert an ARRIRAW clip (.ari, .arx, .mxf) to an OpenEXR sequence with "
                                      "ARRI's art-cmd and create its Read when done") );
         QObject::connect( importArri, SIGNAL(triggered()), this, SLOT(importArriClip()) );
         _imp->menuFile->addAction(importArri);
 
-        QAction* importBraw = new QAction(tr("Import Blackmagic RAW (braw2exr)..."), this);
+        QAction* importBraw = new QAction(tr("Import BRAW (Blackmagic)..."), this);
         importBraw->setStatusTip( tr("Convert a Blackmagic RAW clip (.braw) to an OpenEXR sequence with "
                                      "braw2exr and create its Read when done") );
         QObject::connect( importBraw, SIGNAL(triggered()), this, SLOT(importBrawClip()) );

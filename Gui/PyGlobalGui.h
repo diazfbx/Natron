@@ -32,6 +32,7 @@
 CLANG_DIAG_OFF(deprecated)
 CLANG_DIAG_OFF(uninitialized)
 #include <QKeyEvent>
+#include <QPixmap>   // getIcon() returns one by value (complete type needed)
 #include <QTextDocument> // Qt::mightBeRichText (HTML / links in Python dialogs)
 CLANG_DIAG_ON(deprecated)
 CLANG_DIAG_ON(uninitialized)
