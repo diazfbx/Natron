@@ -8,6 +8,15 @@
  *     frame around the selected properties panel...), with the Qt6
  *     Natron--Class selectors added so it applies to this build;
  *  3. "accents": orange / yellow texts and highlights.
+ *
+ * Greys measured on a Nuke screenshot (pixel values, sRGB):
+ *   #323232 panels, node graph, menu bar     (Preferences "base")
+ *   #262626 tab bars, non-selected tabs      ("sunken")
+ *   #3a3a3a text fields, panel header        ("raised")
+ *   #484848..#535353 buttons / drop-downs (gradient)
+ *   #1f1f1f field borders, #191919 / #4b4b4b etched separators
+ *   #2d2d2d timeline, #1c1c1c / #4d4d4d scroll bars
+ *   #c8c8c8 text, #f79323 orange (focus / selection)
  * Apply it with the menu  Themes > Nuketron  (also sets the matching colours
  * in Preferences > Appearance), or by hand: Preferences > Appearance >
  * Stylesheet file = <Natron>/Themes/nuketron/nuketron.qss
@@ -812,76 +821,108 @@ QToolButton#ColorSelectorButton:pressed {
 
 
 /* =====================================================================
- * 2. Nuke look (from mainstyle_NUKE.qss)
+ * 2. Nuke look (from mainstyle_NUKE.qss, with Nuke's measured greys)
  * ===================================================================== */
 
+QWidget {
+    color: #c8c8c8;
+    background-color: #323232;
+}
 QFrame {
-    color: %2;               /* no black widget borders */
+    color: #323232;               /* no black widget borders */
 }
 QLabel {
     color: %5;
     margin-left: 2px;
 }
 
-/* Selected node: light frame around its properties panel, like Nuke */
+/* Etched separator lines in the properties panels */
+QFrame[frameShape="4"] {
+    border: none;
+    border-top: 1px solid #191919;
+    border-bottom: 1px solid #4b4b4b;
+    background: transparent;
+}
+
+/* Properties panels: #323232 body; the selected one gets a light frame */
 NodeSettingsPanel,
 Natron--NodeSettingsPanel {
-    background-color: %3;
+    background-color: #323232;
     color: %5;
 }
 NodeSettingsPanel[_selected="true"],
 Natron--NodeSettingsPanel[_selected="true"] {
-    background-color: %5;
+    background-color: #a0a0a0;
     border: 0px solid white;
     border-radius: 0px;
-    padding: 2px;
+    padding: 1px;
 }
 NodeSettingsPanel[_selected="false"],
 Natron--NodeSettingsPanel[_selected="false"] {
-    background-color: %2;
+    background-color: #242424;
     border: 0px solid black;
     border-radius: 0px;
-    padding: 2px;
+    padding: 1px;
 }
 
 QToolTip {
-    color: %5;
+    color: #c8c8c8;
     background-color: black;
-    border: 2px solid black;
+    border: 1px solid #1f1f1f;
     border-radius: 0px;
 }
 
 TabWidget,
 Natron--TabWidget {
-    background-color: %4;
+    background-color: #262626;
 }
 
-ComboBox,
-Natron--ComboBox {
-    border-radius: 2px;
-    border: 1px solid black;
-}
-
-/* Nuke's raised grey buttons */
+/* Buttons and drop-downs: Nuke's raised grey gradient, dark edge */
 QPushButton {
-    background: qlineargradient(x1: 0, y1: 1, x2: 0, y2: 0, stop: 0 #464646, stop: 0.5 #4e4e4e);
-    color: %5;
-    border: 1px solid black;
+    background: qlineargradient(x1: 0, y1: 1, x2: 0, y2: 0, stop: 0 #464646, stop: 1 #535353);
+    color: #c8c8c8;
+    border: 1px solid #1f1f1f;
     border-radius: 2px;
-    padding: 4px;
+    padding: 3px;
     padding-left: 8px;
     padding-right: 8px;
 }
 QPushButton:pressed {
-    background: %4;
-    border: 1px solid black;
+    background: #3a3a3a;
+    border: 1px solid #1f1f1f;
 }
-QPushButton:hover,
+QPushButton:hover {
+    background: qlineargradient(x1: 0, y1: 1, x2: 0, y2: 0, stop: 0 #4e4e4e, stop: 1 #5c5c5c);
+    border: 1px solid #1f1f1f;
+}
 QPushButton:focus {
-    border: 1px solid black;
+    border: 1px solid #1f1f1f;
 }
 QPushButton:!enabled {
-    color: %8;
+    color: #6e6e6e;
+}
+
+ComboBox,
+Natron--ComboBox {
+    background: qlineargradient(x1: 0, y1: 1, x2: 0, y2: 0, stop: 0 #464646, stop: 1 #535353);
+    border-radius: 2px;
+    border: 1px solid #1f1f1f;
+}
+QComboBox {
+    color: #c8c8c8;
+    background: qlineargradient(x1: 0, y1: 1, x2: 0, y2: 0, stop: 0 #464646, stop: 1 #535353);
+    border: 1px solid #1f1f1f;
+    border-radius: 2px;
+    selection-color: %1;
+    selection-background-color: #3a3a3a;
+}
+QComboBox QAbstractItemView {
+    border-radius: 0px;
+    border: 1px solid #1f1f1f;
+    color: #c8c8c8;
+    background-color: #3a3a3a;
+    selection-color: %1;
+    selection-background-color: #3a3a3a;
 }
 
 NodeCreationDialog,
@@ -890,153 +931,181 @@ Natron--NodeCreationDialog {
 }
 
 QToolButton {
-    background-color: %2;
-    color: %5;
+    background-color: #323232;
+    color: #c8c8c8;
 }
 QToolButton:focus {
     border: 0px solid %1;
 }
 
+QTreeView, QListView, QHeaderView {
+    color: #c8c8c8;
+    background-color: #3a3a3a;
+}
 QHeaderView:section {
-    color: %5;
-    background-color: %2;
+    color: #c8c8c8;
+    background-color: #323232;
     selection-background-color: %1;
 }
 
-/* Drop-down menus: the chosen entry is written in the selection colour */
-QComboBox {
-    color: %5;
-    background-color: %3;
-    selection-color: %1;
-    selection-background-color: %3;
-}
-QComboBox QAbstractItemView {
-    border-radius: 0px;
-    border: 1px;
-    color: %5;
-    background-color: %3;
-    selection-color: %1;
-    selection-background-color: %3;
-}
-
 QTabWidget::pane {
-    border: 1px solid black;
+    border: 1px solid #1f1f1f;
     margin-top: 0px;
 }
 
+/* Text / number fields */
 QLineEdit {
-    border: 1px solid black;
+    border: 1px solid #1f1f1f;
     border-radius: 2px;
+    background-color: #3a3a3a;
+    color: #c8c8c8;
 }
 QLineEdit:focus {
-    border: 1px groove black;
+    border: 1px solid #1f1f1f;
     border-radius: 2px;
 }
-
-/* Thin splitters with a dark edge */
-QSplitter::handle:horizontal {
-    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 %3, stop:0.55 %2, stop:0.98 black, stop:1 black);
-    border: 0px;
+QLineEdit:!enabled,
+QLineEdit:read-only {
+    color: #6e6e6e;
+    background-color: #3a3a3a;
 }
+
+/* Scroll bars: dark track, grey handle */
+QScrollBar:vertical,
+QScrollBar:horizontal {
+    border: 0px;
+    background: #1c1c1c;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: #1c1c1c;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    border: 0px;
+    background: #262626;
+}
+QScrollBar::handle:vertical,
+QScrollBar::handle:horizontal {
+    image: none;
+    background: #4d4d4d;
+    border-radius: 2px;
+    margin: 1px;
+}
+
+/* Thin splitters */
+QSplitter::handle:horizontal,
 QSplitter::handle:vertical {
-    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 %3, stop:0.55 %2, stop:0.98 black, stop:1 black);
+    background-color: #262626;
     border: 0px;
 }
 
-/* Square, compact tabs; non-selected tabs sit 1px lower */
+/* Tabs: #262626 bar, #252525 tabs, the current one #333333 */
 QTabBar {
     tabbar-prefer-no-arrows: true;
-    background-color: %4;
+    background-color: #262626;
 }
 QTabBar::tab {
-    background-color: %4;
-    border: 1px solid black;
-    border-bottom-color: %4;
+    background-color: #252525;
+    color: #c8c8c8;
+    border: 1px solid #1b1b1b;
+    border-bottom: none;
     border-top-right-radius: 2px;
     border-top-left-radius: 2px;
     min-width: 12ex;
     padding: 3px;
+    padding-left: 9px;
+    padding-right: 6px;
     margin-left: 0px;
-    margin-right: 0px;
+    margin-right: 1px;
 }
 QTabBar::tab#DockablePanelTabWidget,
 QTabBar::tab#Natron--DockablePanelTabWidget {
     min-width: 1ex;
 }
 QTabBar::tab:selected {
-    background: %2;
+    background: #333333;
     border-bottom-style: none;
 }
 QTabBar::tab:!selected {
-    color: %5;
-    background: %4;
+    background: #252525;
     margin-top: 1px;
+}
+QTabBar::tab:hover {
+    background: #3a3a3a;
 }
 
 QMenu {
-    border: 1px solid black;
+    background-color: #323232;
+    border: 1px solid #1f1f1f;
+    color: #c8c8c8;
 }
-
 QMenuBar {
-    color: %5;
-    background-color: %2;
+    color: #c8c8c8;
+    background-color: #323232;
 }
 QMenuBar::item {
-    color: %5;
-    background-color: %2;
+    color: #c8c8c8;
+    background-color: #323232;
 }
 
+QTextEdit, QPlainTextEdit {
+    color: #c8c8c8;
+    background-color: #3a3a3a;
+}
 QTextEdit:focus {
     border: 0px groove %1;
     border-radius: 0px;
     padding: 4px 4px;
 }
 
+QGraphicsView {
+    background-color: #323232;
+}
+QDialog, QMainWindow, QScrollArea, QDialogButtonBox {
+    background-color: #323232;
+}
+
 /* =====================================================================
- * 3. accents
- * Orange  #f7931e : selection, active tab text, menus, focus
- * Yellow  #f2c14e : section / group titles, headers
+ * 3. accents (Nuke: orange text on the focused panel's tab, orange
+ *    highlights; yellow section titles)
+ * Orange  #f79323   light orange #ffcd92 (hover)   yellow #f2c14e
  * ===================================================================== */
 
 QGroupBox,
 QGroupBox::title {
     color: #f2c14e;
 }
-QHeaderView:section {
-    color: #f2c14e;
-}
 
-QTabBar::tab:selected {
-    color: #f7931e;
-}
-QTabBar::tab:hover {
-    background: #4a4a4a;
-    color: #ffb04a;
-}
+/* Focused panel: its current tab is written in orange (Nuke) */
 TabBar[clickFocus="true"],
 Natron--TabBar[clickFocus="true"] {
-    color: #f7931e;
+    color: #f79323;
 }
 TabBar[mouseOverFocus="true"][clickFocus="false"],
 Natron--TabBar[mouseOverFocus="true"][clickFocus="false"] {
-    color: #ffc266;
+    color: #ffcd92;
+}
+TabBar[mouseOverFocus="false"][clickFocus="false"],
+Natron--TabBar[mouseOverFocus="false"][clickFocus="false"] {
+    color: #c8c8c8;
 }
 
 QMenuBar::item:selected,
 QMenu::item:selected {
-    background-color: #f7931e;
+    background-color: #f79323;
     color: #141414;
 }
 
 QLineEdit:focus {
-    border: 1px solid #f7931e;
+    border: 1px solid #f79323;
 }
 QPushButton:checked {
-    background: #f7931e;
+    background: #f79323;
     color: #141414;
 }
 
 QTreeWidget::item:selected {
-    background: #f7931e;
+    background: #f79323;
     color: #141414;
 }

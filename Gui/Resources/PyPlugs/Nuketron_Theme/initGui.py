@@ -24,26 +24,29 @@ import NatronEngine
 
 # Preferences > Appearance colours (settings knob name -> r, g, b in 0..1)
 NUKETRON_COLORS = {
-    # UI greys (Nuke: panels #323232, fields #3a3a3a, window #262626)
-    "sunken":           (0.150, 0.150, 0.150),
+    # UI greys measured on Nuke: panels #323232, tab bars #262626, fields #3a3a3a
+    "sunken":           (0.149, 0.149, 0.149),
     "base":             (0.196, 0.196, 0.196),
-    "raised":           (0.235, 0.235, 0.235),
-    "text":             (0.800, 0.800, 0.800),
+    "raised":           (0.227, 0.227, 0.227),
+    "text":             (0.784, 0.784, 0.784),
     "unmodifiedText":   (0.620, 0.620, 0.620),
-    # Nuke orange
-    "selection":        (0.969, 0.576, 0.118),
+    # Nuke orange #f79323
+    "selection":        (0.969, 0.576, 0.137),
     # Animated / linked knobs (Nuke: keyed = blue, interpolated = light blue, expression = purple)
     "keyframe":         (0.200, 0.420, 0.660),
     "interpValue":      (0.330, 0.450, 0.560),
     "exprColor":        (0.520, 0.380, 0.700),
-    "slider":           (0.969, 0.576, 0.118),
-    # Timeline: flat, same grey as the panel it sits in (close to Nuke's frame
-    # bar), orange playhead, yellow in/out bounds, green cached frames
-    "timelineBG":       (0.196, 0.196, 0.196),
-    "timelinePlayhead": (1.000, 0.600, 0.100),
+    "slider":           (0.969, 0.576, 0.137),
+    # Timeline: Nuke's #2d2d2d frame bar, orange playhead, yellow in/out
+    # bounds, green cached frames
+    "timelineBG":       (0.176, 0.176, 0.176),
+    "timelinePlayhead": (0.969, 0.576, 0.137),
     "timelineBound":    (0.950, 0.760, 0.300),
     "cachedFrame":      (0.330, 0.700, 0.330),
     "diskCachedFrame":  (0.300, 0.450, 0.700),
+    # Curve editor / dope sheet on the same #323232 as the panels
+    "curveEditorBG":    (0.196, 0.196, 0.196),
+    "dopesheetBackground": (0.196, 0.196, 0.196),
 }
 
 THEME_REL = os.path.join("Themes", "nuketron", "nuketron.qss")
