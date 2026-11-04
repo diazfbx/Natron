@@ -162,3 +162,13 @@ Validated live: patches apply to pristine source under both Git-for-Windows and 
 standalone (Natron 2.6, 539 plugins, CyclesRender, openfx-io/CImg, qtpy OK). Build phases
 00/01/03/04/05 are the exact commands from the verified 2026-05-25 manual build, wrapped
 with config + logging.
+
+
+## Quick rebuild (after editing Natron's sources)
+
+`bash quick.sh` runs only phase 04 (incremental `make`: the changed files are
+recompiled) and refreshes the install's binaries, PyPlugs, themes and templates
+without re-copying the DLLs, Python, OCIO configs and OFX plugins.
+`bash quick.sh --no-build` only refreshes the install (PyPlug / theme / template
+edits). Use `build-all.sh` when `tools/win-build` itself changed (new patches or
+packages), for the OFX plugins (openfx-misc, openfx-io...) or Cycles.
