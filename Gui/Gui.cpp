@@ -634,8 +634,7 @@ Gui::createMenuActions()
     _imp->menubar->addAction( _imp->menuDisplay->menuAction() );
     _imp->menubar->addAction( _imp->menuRender->menuAction() );
     _imp->menubar->addAction( _imp->cacheMenu->menuAction() );
-    // Templates menu left out of the menu bar (diazfbx fork); built but not shown.
-    // _imp->menubar->addAction( _imp->menuTemplates->menuAction() );
+    _imp->menubar->addAction( _imp->menuTemplates->menuAction() );
     _imp->menubar->addAction( _imp->menuHelp->menuAction() );
 
 #ifdef __APPLE__
@@ -710,11 +709,39 @@ Gui::createMenuActions()
         Menu* menuProject3D = new Menu(tr("Project3D"), _imp->menuTemplates);
         Menu* menuDeep = new Menu(tr("Deep"), _imp->menuTemplates);
         Menu* menuHDRI = new Menu(tr("HDRI"), _imp->menuTemplates);
+        Menu* menuTrack = new Menu(tr("Track"), _imp->menuTemplates);
         _imp->menuTemplates->addAction(menu3D->menuAction());
         _imp->menuTemplates->addAction(menuParticles->menuAction());
         _imp->menuTemplates->addAction(menuProject3D->menuAction());
         _imp->menuTemplates->addAction(menuDeep->menuAction());
         _imp->menuTemplates->addAction(menuHDRI->menuAction());
+        _imp->menuTemplates->addAction(menuTrack->menuAction());
+
+        // Track: matchmove / lens scenes saved as .ntp in Resources/Templates/Track
+        // (blank: no file in the Reads / Writes), pasted into the current graph.
+        {
+            struct TrackTemplate { const char* label; const char* file; const char* tip; };
+            static const TrackTemplate kTrack[] = {
+                { "Create Undistort", "Track/Create_Undistort.ntp",
+                  "Read -> Reformat (scale 1.1 overscan) -> LD_3DE4 Undistort -> Write" },
+                { "Create Distmap",   "Track/Create_Distmap.ntp",
+                  "Read -> LD_3DE4 Distort (STMap) -> Reformat -> Write: the distortion STMap" },
+                { "Create Undistmap", "Track/Create_Undistmap.ntp",
+                  "Read -> LD_3DE4 Undistort (STMap) -> Reformat -> Write: the undistortion STMap" },
+                { "Undisto Check",    "Track/Undisto_Check.ntp",
+                  "Plate + distmap Read -> STMap: check an undistort / redistort round trip" },
+            };
+            for (size_t i = 0; i < sizeof(kTrack) / sizeof(kTrack[0]); ++i) {
+                QAction* t = new QAction(tr(kTrack[i].label), this);
+                t->setData( QString::fromUtf8(kTrack[i].file) );
+                t->setStatusTip( tr(kTrack[i].tip) );
+                QObject::connect(t, SIGNAL(triggered()), this, SLOT(createTemplateFromFile()));
+                menuTrack->addAction(t);
+            }
+            QAction* soon = new QAction(tr("Track Check (coming soon)"), this);
+            soon->setEnabled(false);
+            menuTrack->addAction(soon);
+        }
 
         // Placeholder categories — templates to be added; the disabled entry
         // keeps the submenu discoverable until then.

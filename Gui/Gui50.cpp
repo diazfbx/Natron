@@ -93,6 +93,17 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 #include "Gui/GuiApplicationManager.h" // appPTR
 #include "Gui/GuiPrivate.h"
 #include "Gui/Viewport3D.h"
+#include "Gui/NodeClipBoard.h"          // template scenes (.ntp) pasted into the graph
+#include "Gui/NodeGraph.h"
+#include "Gui/NodeGuiSerialization.h"
+#include "Gui/ProjectGuiSerialization.h"
+#include "Engine/NodeSerialization.h"
+#include "Engine/ProjectSerialization.h"
+#include "Engine/Format.h"
+
+#include <sstream>
+#include <boost/archive/xml_iarchive.hpp>
+#include <boost/serialization/nvp.hpp>
 #include "Gui/Viewport3DTab.h"
 #include "Gui/KnobWidgetDnD.h"
 #include "Gui/GuiMacros.h"
@@ -2013,5 +2024,105 @@ Gui::dropEvent(QDropEvent* e)
 
     handleOpenFilesFromUrls( urls, mapToGlobal( e->pos() ) );
 } // dropEvent
+
+NATRON_NAMESPACE_EXIT
+
+NATRON_NAMESPACE_ENTER
+
+// ==================== Templates stored as .ntp scenes ====================
+//
+// <Natron>/Resources/Templates/<category>/<scene>.ntp, saved from Natron like
+// any project. The menu entry pastes the scene's nodes into the current node
+// graph (same path as Ctrl+V: links between them are kept, names made unique)
+// and adds the scene's custom formats to the project, so Reformat / Write
+// format menus find them.
+
+QString
+Gui::templatesDirectory()
+{
+    return appPTR->getApplicationBinaryPath() + QString::fromUtf8("../Resources/Templates/");
+}
+
+void
+Gui::createTemplateFromFile()
+{
+    QAction* a = qobject_cast<QAction*>( sender() );
+    if (!a) {
+        return;
+    }
+    importTemplateScene( a->data().toString() );
+}
+
+void
+Gui::importTemplateScene(const QString& relativePath)
+{
+    const QString path = templatesDirectory() + relativePath;
+    QFile file(path);
+    if ( !file.open(QIODevice::ReadOnly) ) {
+        Dialogs::errorDialog( tr("Templates").toStdString(),
+                              tr("Template scene not found: %1").arg(path).toStdString() );
+        return;
+    }
+    std::stringstream ss( std::string( file.readAll().constData() ) );
+    file.close();
+
+    AppInstancePtr app = getApp();
+    const ProjectBeingLoadedInfo previousInfo = app->getProjectBeingLoadedInfo();
+    NodeClipBoard cb;
+    std::list<Format> formats;
+    try {
+        boost::archive::xml_iarchive iArchive(ss);
+        bool bgProject = false;
+        iArchive >> boost::serialization::make_nvp("Background_project", bgProject);
+        ProjectSerialization projectObj(app);
+        iArchive >> boost::serialization::make_nvp("Project", projectObj);
+        ProjectGuiSerialization guiObj;
+        if (!bgProject) {
+            iArchive >> boost::serialization::make_nvp("ProjectGui", guiObj);
+        }
+        formats = projectObj.getAdditionalFormats();
+
+        const std::list<NodeSerializationPtr>& nodes = projectObj.getNodesSerialization().getNodesSerialization();
+        const std::list<NodeGuiSerialization>& guis = guiObj.getSerializedNodesGui();
+        for (std::list<NodeSerializationPtr>::const_iterator it = nodes.begin(); it != nodes.end(); ++it) {
+            NodeGuiSerializationPtr ui = std::make_shared<NodeGuiSerialization>();
+            for (std::list<NodeGuiSerialization>::const_iterator g = guis.begin(); g != guis.end(); ++g) {
+                if ( g->getFullySpecifiedName() == (*it)->getNodeScriptName() ) {
+                    *ui = *g;
+                    break;
+                }
+            }
+            cb.nodes.push_back(*it);
+            cb.nodesUI.push_back(ui);
+        }
+    } catch (const std::exception& e) {
+        app->setProjectBeingLoadedInfo(previousInfo);
+        Dialogs::errorDialog( tr("Templates").toStdString(),
+                              tr("Could not read the template scene %1: %2").arg(path).arg( QString::fromUtf8( e.what() ) ).toStdString() );
+        return;
+    } catch (...) {
+        app->setProjectBeingLoadedInfo(previousInfo);
+        Dialogs::errorDialog( tr("Templates").toStdString(),
+                              tr("Could not read the template scene %1").arg(path).toStdString() );
+        return;
+    }
+
+    ProjectPtr project = app->getProject();
+    for (std::list<Format>::const_iterator f = formats.begin(); f != formats.end(); ++f) {
+        QString spec;
+        if ( !f->getName().empty() ) {
+            spec = QString::fromUtf8( f->getName().c_str() ) + QLatin1Char(' ');
+        }
+        spec += QString::fromUtf8("%1x%2 %3").arg( f->width() ).arg( f->height() ).arg( f->getPixelAspectRatio() );
+        project->addFormat( spec.toStdString() );
+    }
+
+    NodeGraph* graph = getNodeGraph();
+    if ( graph && !cb.isEmpty() ) {
+        std::list<std::pair<std::string, NodeGuiPtr> > newNodes;
+        graph->pasteCliboard(cb, &newNodes);
+    }
+    app->setProjectBeingLoadedInfo(previousInfo);
+}
 
 NATRON_NAMESPACE_EXIT

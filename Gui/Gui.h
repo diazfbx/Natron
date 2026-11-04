@@ -420,6 +420,11 @@ public:
 
     AppInstancePtr openProject(const std::string& filename) WARN_UNUSED_RETURN;
 
+    // Template scenes: <Natron>/Resources/Templates/ (trailing slash), and paste
+    // one of them (path relative to it) into the current node graph.
+    static QString templatesDirectory();
+    void importTemplateScene(const QString& relativePath);
+
     bool isGUIFrozen() const;
 
     void addShortcut(BoundAction* action);
@@ -593,6 +598,8 @@ public Q_SLOTS:
     void createTemplateParticleJetExhaust();
     void createTemplateParticleHeatDistort();
     void createTemplateHDRIBasic();
+    // Templates saved as .ntp scenes under <Natron>/Resources/Templates (action data = relative path).
+    void createTemplateFromFile();
     void createTemplateMegascansAsset();
 
     void autoSave();

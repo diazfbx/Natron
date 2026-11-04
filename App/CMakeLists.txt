@@ -67,6 +67,9 @@ add_custom_command(TARGET Natron POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/Gui/Resources/Themes"
             "${CMAKE_BINARY_DIR}/Themes"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/Gui/Resources/Templates"
+            "${CMAKE_BINARY_DIR}/Resources/Templates"
     COMMAND ${CMAKE_COMMAND} -E remove_directory
             "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/Nuketron_Theme"
     COMMENT "Copying Themes/ to ${CMAKE_BINARY_DIR} (no Themes menu: set the .qss in Preferences)")

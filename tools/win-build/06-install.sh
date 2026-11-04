@@ -150,6 +150,12 @@ if [ -d "$OCIO_EXTRA" ]; then
   cp "$OCIO_EXTRA/LICENSE-OpenColorIO.txt" "$I/Licenses/OpenColorIO-configs-LICENSE.txt"
 fi
 
+# --- Template scenes (Templates menu, e.g. Track): <Natron>/Resources/Templates ---
+if [ -d "$NATRON_ROOT/Natron/Gui/Resources/Templates" ]; then
+  log "Template scenes (Gui/Resources/Templates)"
+  mkdir -p "$I/Resources/Templates"; cp -r "$NATRON_ROOT/Natron/Gui/Resources/Templates/." "$I/Resources/Templates/"
+fi
+
 # --- Themes (stylesheets) at the install root: <Natron>/Themes/<name>/<name>.qss ---
 # No Themes menu: pick the .qss in Preferences > Appearance > Stylesheet file.
 THEMES_SRC="$NATRON_ROOT/Natron/Gui/Resources/Themes"
