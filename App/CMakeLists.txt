@@ -61,6 +61,11 @@ add_custom_command(TARGET Natron POST_BUILD
             "${CMAKE_SOURCE_DIR}/Gui/Resources/PyPlugs/3DE_Lens_Import"
             "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/3DE_Lens_Import"
     COMMENT "Copying 3DE Lens Import PyPlug to ${CMAKE_BINARY_DIR}/Plugins/PyPlugs/3DE_Lens_Import/")
+add_custom_command(TARGET Natron POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/Gui/Resources/PyPlugs/R3D_Import"
+            "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/R3D_Import"
+    COMMENT "Copying R3D Import PyPlug (REDline) to ${CMAKE_BINARY_DIR}/Plugins/PyPlugs/R3D_Import/")
 # Themes (Nuke-like "nuketron" stylesheet) at the build root, like the install's
 # <Natron>/Themes. The Themes menu PyPlug is no longer installed (removed from older builds).
 add_custom_command(TARGET Natron POST_BUILD

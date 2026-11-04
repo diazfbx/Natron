@@ -32,6 +32,7 @@ if [ "${STRIP_INSTALL:-1}" = "1" ]; then
 fi
 [ -d "$B/Plugins/PyPlugs" ] && cp -r "$B/Plugins/PyPlugs/." "$I/Plugins/PyPlugs/"
 [ -d "$SRC/Gui/Resources/PyPlugs/3DE_Lens_Import" ] && cp -r "$SRC/Gui/Resources/PyPlugs/3DE_Lens_Import" "$I/Plugins/PyPlugs/"
+[ -d "$SRC/Gui/Resources/PyPlugs/R3D_Import" ] && cp -r "$SRC/Gui/Resources/PyPlugs/R3D_Import" "$I/Plugins/PyPlugs/"
 mkdir -p "$I/Themes" "$I/Resources/Templates"
 [ -d "$SRC/Gui/Resources/Themes" ]    && cp -r "$SRC/Gui/Resources/Themes/."    "$I/Themes/"
 [ -d "$SRC/Gui/Resources/Templates" ] && cp -r "$SRC/Gui/Resources/Templates/." "$I/Resources/Templates/"
