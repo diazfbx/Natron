@@ -1777,7 +1777,7 @@ AppManager::loadBuiltinNodePlugins(IOPluginsMap* /*readersMap*/,
 
     // Dev nodes — Channel
     registerBuiltInPlugin<DevShuffle>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/channel_grouping_2.png"), false, false);
-    registerBuiltInPlugin<Cryptomatte>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/keyer_grouping_2.png"), false, false);
+    registerBuiltInPlugin<Cryptomatte>(QString(), false, false); // no icon on the node box
 
     // Dev nodes — Particles
     registerBuiltInPlugin<ParticleEmitter>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set3/3D_grouping_3.png"), false, false);
