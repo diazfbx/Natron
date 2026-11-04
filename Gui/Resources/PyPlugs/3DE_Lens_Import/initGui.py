@@ -194,10 +194,14 @@ def _create_ld3de4(app, nd, log):
     """Node LD_3DE4 (tous les modeles) ; None si ce Natron ne l'a pas ou modele inconnu."""
     if nd["class"] not in LD3DE4_CLASSES:
         return None
-    try:
-        node = app.createNode(LD3DE4_ID)
-    except Exception:
-        node = None
+    node = None
+    for pid in (LD3DE4_ID + "." + nd["class"], LD3DE4_ID):   # node named after the model, else generic
+        try:
+            node = app.createNode(pid)
+        except Exception:
+            node = None
+        if node is not None:
+            break
     if node is None:
         return None
     node.getParam("ldModel").setValue(LD3DE4_CLASSES.index(nd["class"]))

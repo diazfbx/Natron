@@ -658,7 +658,8 @@ protected:
 
     template <typename PLUGIN>
     void registerBuiltInPlugin(const QString& iconPath, bool isDeprecated, bool internalUseOnly,
-                               const QString& pluginIDOverride = QString());
+                               const QString& pluginIDOverride = QString(),
+                               const QString& pluginLabelOverride = QString());
 
     virtual AppInstancePtr makeNewInstance(int appID) const;
     virtual void registerGuiMetaTypes() const

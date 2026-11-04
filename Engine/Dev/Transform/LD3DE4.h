@@ -73,6 +73,7 @@ public:
     virtual void getPluginGrouping(std::list<std::string>* grouping) const OVERRIDE FINAL
     {
         grouping->push_back(PLUGIN_GROUP_TRANSFORM);
+        grouping->push_back("3DE4");   // Transform > 3DE4 > LD_3DE4, LD_3DE4_Radial_Standard_Degree_4, ...
     }
 
     virtual std::string getInputLabel(int /*inputNb*/) const OVERRIDE FINAL WARN_UNUSED_RETURN { return "Source"; }
@@ -102,6 +103,8 @@ private:
     virtual StatusEnum render(const RenderActionArgs& args) OVERRIDE FINAL WARN_UNUSED_RETURN;
 
     void refreshModelKnobs();
+    // Model preset by the plugin ID (fr.inria.built-in.LD3DE4.<NukeClass>), else 0.
+    int modelFromPluginID() const;
 
     std::unique_ptr<LD3DE4Private> _imp;
 };

@@ -305,7 +305,7 @@ LD3DE4::initializeKnobs()
             e.push_back( ChoiceOption(kModels[m].nukeClass, cat.modelNames[m], kModels[m].nukeClass) );
         }
         k->populateChoices(e);
-        k->setDefaultValue(0);
+        k->setDefaultValue( modelFromPluginID() );
         k->setHintToolTip(tr("3DEqualizer lens distortion model (the Nuke node class is in each entry's tooltip)."));
         page->addKnob(k);
         _imp->model = k;
@@ -384,6 +384,27 @@ LD3DE4::initializeKnobs()
         _imp->params.push_back(k);
     }
     refreshModelKnobs();
+}
+
+int
+LD3DE4::modelFromPluginID() const
+{
+    NodePtr n = getNode();
+    if (!n) {
+        return 0;
+    }
+    const std::string id = n->getPluginID();
+    const std::string prefix = std::string(PLUGINID_NATRON_LD3DE4) + ".";
+    if ( id.compare(0, prefix.size(), prefix) != 0 ) {
+        return 0;
+    }
+    const std::string cls = id.substr( prefix.size() );
+    for (int m = 0; m < kNumModels; ++m) {
+        if (cls == kModels[m].nukeClass) {
+            return m;
+        }
+    }
+    return 0;
 }
 
 void

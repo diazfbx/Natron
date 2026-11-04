@@ -1642,7 +1642,8 @@ void
 AppManager::registerBuiltInPlugin(const QString& iconPath,
                                   bool isDeprecated,
                                   bool internalUseOnly,
-                                  const QString& pluginIDOverride)
+                                  const QString& pluginIDOverride,
+                                  const QString& pluginLabelOverride)
 {
     EffectInstancePtr node( PLUGIN::BuildEffect( NodePtr() ) );
     std::map<std::string, void (*)()> functions;
@@ -1663,7 +1664,9 @@ AppManager::registerBuiltInPlugin(const QString& iconPath,
     QString resourcesPath = QString();
     const std::string pluginID = pluginIDOverride.isEmpty() ?
                                      node->getPluginID() : pluginIDOverride.toStdString();
-    Plugin* p = registerPlugin(resourcesPath, qgrouping, QString::fromUtf8( pluginID.c_str() ), QString::fromUtf8( node->getPluginLabel().c_str() ),
+    const QString pluginLabel = pluginLabelOverride.isEmpty() ?
+                                QString::fromUtf8( node->getPluginLabel().c_str() ) : pluginLabelOverride;
+    Plugin* p = registerPlugin(resourcesPath, qgrouping, QString::fromUtf8( pluginID.c_str() ), pluginLabel,
                                iconPath, QStringList(), node->isReader(), node->isWriter(), binary, node->renderThreadSafety() == eRenderSafetyUnsafe, node->getMajorVersion(), node->getMinorVersion(), isDeprecated);
     std::list<PluginActionShortcut> shortcuts;
     node->getPluginShortcuts(&shortcuts);
@@ -1804,6 +1807,16 @@ AppManager::loadBuiltinNodePlugins(IOPluginsMap* /*readersMap*/,
     // Dev nodes — Transform
     registerBuiltInPlugin<LensWarp>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/transform_grouping_2.png"), false, false);
     registerBuiltInPlugin<LD3DE4>(QString(), false, false);   // 3DE4 lens distortion (LDPK), no icon
+    // One menu entry per 3DE model, named like the Nuke nodes (LD_3DE4_Radial_Standard_Degree_4...):
+    // same node, the model preset from the plugin ID suffix.
+    {
+        const std::vector<std::string> ldClasses = LD3DE4::supportedNukeClasses();
+        for (size_t i = 0; i < ldClasses.size(); ++i) {
+            registerBuiltInPlugin<LD3DE4>( QString(), false, false,
+                                           QString::fromUtf8( ( std::string(PLUGINID_NATRON_LD3DE4) + "." + ldClasses[i] ).c_str() ),
+                                           QString::fromUtf8( ldClasses[i].c_str() ) );
+        }
+    }
     registerBuiltInPlugin<SphericalTransform>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/transform_grouping_2.png"), false, false);
 
     // Dev nodes — Color
