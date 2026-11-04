@@ -116,7 +116,19 @@ def find_redline(cfg):
         if os.path.isfile(c):
             return c
     w = shutil.which("REDline") or shutil.which("REDline.exe")
-    return w
+    if w:
+        return w
+    # Any REDCINE-X PRO / RED install folder (the name changes between versions).
+    import glob
+    roots = [os.environ.get("ProgramFiles", r"C:\Program Files"),
+             os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+             os.environ.get("ProgramW6432", r"C:\Program Files")]
+    for root in roots:
+        for pat in ("RED*", "REDCINE*", os.path.join("RED*", "*")):
+            for d in glob.glob(os.path.join(root, pat)):
+                for exe in glob.glob(os.path.join(d, "REDline*.exe")):
+                    return exe
+    return None
 
 
 def ask_redline(cfg):
