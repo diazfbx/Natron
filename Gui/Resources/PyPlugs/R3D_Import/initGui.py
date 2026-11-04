@@ -131,6 +131,32 @@ def find_redline(cfg):
     return None
 
 
+DOWNLOAD_URL = "https://www.red.com/downloads"
+
+
+def _ask_download():
+    """REDline missing: offer RED's download page. True if the page was opened."""
+    msg = ('<p>REDline was not found.</p>'
+           '<p>R3D import needs <b>REDCINE-X PRO</b>, RED\'s free software that installs REDline. '
+           'Download it here: <a href="%s">%s</a> (Windows, free RED account).</p>'
+           '<p><b>Yes</b>: open the download page. <b>No</b>: REDCINE-X PRO is installed, '
+           'select REDline.exe yourself.</p>') % (DOWNLOAD_URL, DOWNLOAD_URL)
+    _log("REDline not found. Download REDCINE-X PRO: " + DOWNLOAD_URL)
+    try:
+        import NatronGui
+        ret = NatronGui.natron.questionDialog("R3D Import - REDCINE-X PRO needed", msg)
+    except Exception:
+        ret = None
+    if ret is not None and "yes" in str(ret).lower():
+        try:
+            import webbrowser
+            webbrowser.open(DOWNLOAD_URL)
+        except Exception:
+            pass
+        return True
+    return False
+
+
 def ask_redline(cfg):
     app = _app()
     path = ""
@@ -323,8 +349,8 @@ def import_r3d():
         cfg = _load()
         redline = find_redline(cfg)
         if not redline:
-            _message("REDline was not found. It comes with REDCINE-X PRO (free, red.com). "
-                     "Install it, or point to REDline.exe in the next dialog.")
+            if _ask_download():
+                return
             redline = ask_redline(cfg)
             if not redline:
                 return

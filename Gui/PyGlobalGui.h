@@ -32,6 +32,7 @@
 CLANG_DIAG_OFF(deprecated)
 CLANG_DIAG_OFF(uninitialized)
 #include <QKeyEvent>
+#include <QTextDocument> // Qt::mightBeRichText (HTML / links in Python dialogs)
 CLANG_DIAG_ON(deprecated)
 CLANG_DIAG_ON(uninitialized)
 #endif
@@ -86,25 +87,25 @@ public:
     void informationDialog(const QString& title,
                            const QString& message)
     {
-        Dialogs::informationDialog( title.toStdString(), message.toStdString() );
+        Dialogs::informationDialog( title.toStdString(), message.toStdString(), Qt::mightBeRichText(message) );   // HTML (links) from Python
     }
 
     void warningDialog(const QString& title,
                        const QString& message)
     {
-        Dialogs::warningDialog( title.toStdString(), message.toStdString() );
+        Dialogs::warningDialog( title.toStdString(), message.toStdString(), Qt::mightBeRichText(message) );
     }
 
     void errorDialog(const QString& title,
                      const QString& message)
     {
-        Dialogs::errorDialog( title.toStdString(), message.toStdString() );
+        Dialogs::errorDialog( title.toStdString(), message.toStdString(), Qt::mightBeRichText(message) );
     }
 
     Natron::StandardButtonEnum questionDialog(const QString& title,
                                                         const QString& message)
     {
-        return Dialogs::questionDialog(title.toStdString(), message.toStdString(), false);
+        return Dialogs::questionDialog( title.toStdString(), message.toStdString(), Qt::mightBeRichText(message) );
     }
 
     void addMenuCommand(const QString& grouping,
