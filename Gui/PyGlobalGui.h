@@ -108,6 +108,13 @@ public:
         return Dialogs::questionDialog( title.toStdString(), message.toStdString(), Qt::mightBeRichText(message) );
     }
 
+    /**
+     * @brief Calls the Python function pythonFunctionName() (looked up in __main__)
+     * on the main thread after msec milliseconds, without blocking. Lets scripts
+     * poll background work (e.g. an external converter) and then create nodes.
+     **/
+    void callLater(int msec, const QString& pythonFunctionName);
+
     void addMenuCommand(const QString& grouping,
                         const QString& pythonFunctionName)
     {

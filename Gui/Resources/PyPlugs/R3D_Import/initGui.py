@@ -266,6 +266,55 @@ def create_read(job):
     return node
 
 
+POLL_MS = 2000
+
+
+def _schedule_poll():
+    """Check the running conversions again in POLL_MS, on the main thread
+    (NatronGui.natron.callLater, this fork). False on a Natron without it."""
+    try:
+        import NatronGui
+        if not hasattr(NatronGui.natron, "callLater"):
+            return False
+        NatronGui.natron.callLater(POLL_MS, "r3d_poll")
+        return True
+    except Exception:
+        _log("callLater failed\n" + traceback.format_exc())
+        return False
+
+
+def r3d_poll():
+    """Create the Read of each conversion that just finished; re-arm while some run."""
+    try:
+        cfg = _load()
+        jobs = cfg.get("pending", [])
+        left, still = [], False
+        for job in jobs:
+            proc = _RUNNING.get(job["outdir"])
+            if proc is None:
+                left.append(job)            # started in another session: manual menu
+                continue
+            rc = proc.poll()
+            if rc is None:
+                still = True
+                left.append(job)
+                continue
+            _RUNNING.pop(job["outdir"], None)
+            if rc != 0:
+                _message("REDline failed on %s (exit code %d): no Read created." % (job["name"], rc), error=True)
+                continue
+            if create_read(job) is None:
+                _message("REDline finished %s but no EXR was found in %s." % (job["name"], job["outdir"]), error=True)
+            else:
+                _message("Conversion finished: Read created for %s." % job["name"])
+        cfg["pending"] = left
+        _save(cfg)
+        if still:
+            _schedule_poll()
+    except Exception:
+        _log("poll failed\n" + traceback.format_exc())
+
+
 def create_pending_reads():
     cfg = _load()
     jobs = cfg.get("pending", [])
@@ -384,8 +433,12 @@ def import_r3d():
         cfg.setdefault("pending", [])
         cfg["pending"] = [j for j in cfg["pending"] if j["outdir"] != outdir] + [job]
         _save(cfg)
-        _message("Conversion started (see the REDline window).\n"
-                 "When it is finished: R3D > Create Reads (finished conversions).")
+        if _schedule_poll():
+            _message("Conversion started (see the REDline window).\n"
+                     "The Read is created automatically when it is finished.")
+        else:
+            _message("Conversion started (see the REDline window).\n"
+                     "When it is finished: R3D > Create Reads (finished conversions).")
     except Exception:
         _message("R3D import failed:\n" + traceback.format_exc(), error=True)
 
@@ -416,6 +469,7 @@ def _r3d_register():
     __main__.r3d_import = r3d_import
     __main__.r3d_create_reads = r3d_create_reads
     __main__.r3d_set_redline = r3d_set_redline
+    __main__.r3d_poll = r3d_poll
     if getattr(NatronGui, "_r3d_menu_done", False):
         return
     NatronGui.natron.addMenuCommand("R3D/Import R3D (REDline)...", "r3d_import")
