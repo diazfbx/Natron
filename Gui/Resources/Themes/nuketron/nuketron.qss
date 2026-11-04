@@ -1161,3 +1161,52 @@ QTreeWidget::item:selected {
     background: #f79323;
     color: #141414;
 }
+
+/* =====================================================================
+ * 4. Viewer playback bar: flat, translucent, light icons
+ * (alpha values below are 0..255)
+ * ===================================================================== */
+QWidget#ViewerPlayerBar {
+    background-color: rgba(0, 0, 0, 45);
+    border-top: 1px solid rgba(255, 255, 255, 14);
+}
+QWidget#ViewerPlayerBar QPushButton {
+    background: transparent;
+    border: 0px;
+    border-radius: 3px;
+    padding: 0px;
+    margin: 0px 1px;
+}
+QWidget#ViewerPlayerBar QPushButton:hover {
+    background: rgba(255, 255, 255, 30);
+}
+QWidget#ViewerPlayerBar QPushButton:pressed {
+    background: rgba(255, 255, 255, 55);
+}
+QWidget#ViewerPlayerBar QPushButton:checked {
+    background: rgba(247, 147, 35, 95);
+}
+QWidget#ViewerPlayerBar QLineEdit {
+    background-color: rgba(0, 0, 0, 80);
+    color: #e6e6e6;
+    border: 0px;
+    border-radius: 3px;
+    padding: 1px 3px;
+}
+QWidget#ViewerPlayerBar QLineEdit:focus {
+    border: 1px solid #f79323;
+}
+QLineEdit#ViewerCurrentFrame {
+    color: #f79323;
+}
+QWidget#ViewerPlayerBar QComboBox {
+    background: rgba(255, 255, 255, 18);
+    color: #e6e6e6;
+    border: 0px;
+    border-radius: 3px;
+}
+QWidget#ViewerPlayerBar QLabel,
+QWidget#ViewerPlayerBar QCheckBox {
+    background: transparent;
+    color: #d0d0d0;
+}

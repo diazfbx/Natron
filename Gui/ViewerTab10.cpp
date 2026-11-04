@@ -45,6 +45,7 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 #include "Engine/ViewIdx.h"
 #include "Engine/ViewerInstance.h"
 
+#include "Gui/IconTint.h"
 #include "Gui/ActionShortcuts.h"
 #include "Gui/GuiMacros.h"
 #include "Gui/Button.h"
@@ -181,7 +182,7 @@ ViewerTab::setPlaybackMode(PlaybackModeEnum mode)
         QMutexLocker k(&_imp->playbackModeMutex);
         _imp->playbackMode = mode;
     }
-    _imp->playbackMode_Button->setIcon( QIcon(pix) );
+    _imp->playbackMode_Button->setIcon( natronLightIcon( QIcon(pix), _imp->playbackMode_Button->iconSize() * 2 ) );
     _imp->viewerNode->getRenderEngine()->setPlaybackMode(mode);
 }
 
@@ -217,7 +218,7 @@ ViewerTab::togglePlaybackMode()
         QMutexLocker k(&_imp->playbackModeMutex);
         _imp->playbackMode = mode;
     }
-    _imp->playbackMode_Button->setIcon( QIcon(pix) );
+    _imp->playbackMode_Button->setIcon( natronLightIcon( QIcon(pix), _imp->playbackMode_Button->iconSize() * 2 ) );
     _imp->viewerNode->getRenderEngine()->setPlaybackMode(mode);
 }
 

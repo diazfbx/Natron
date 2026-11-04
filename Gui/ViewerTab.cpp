@@ -45,6 +45,7 @@
 #include "Engine/ViewIdx.h"
 #include "Engine/ViewerInstance.h"
 
+#include "Gui/IconTint.h"
 #include "Gui/ActionShortcuts.h"
 #include "Gui/Button.h"
 #include "Gui/ChannelsComboBox.h"
@@ -630,6 +631,7 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
 
     /*Player buttons*/
     _imp->playerButtonsContainer = new QWidget(this);
+    _imp->playerButtonsContainer->setObjectName( QString::fromUtf8("ViewerPlayerBar") ); // themes style it (nuketron)
     _imp->playerLayout = new QHBoxLayout(_imp->playerButtonsContainer);
     _imp->playerLayout->setSpacing(0);
     _imp->playerLayout->setContentsMargins(0, 0, 0, 0);
@@ -637,6 +639,7 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
 
     _imp->currentFrameBox = new SpinBox(_imp->playerButtonsContainer, SpinBox::eSpinBoxTypeInt);
     _imp->currentFrameBox->setValue(0);
+    _imp->currentFrameBox->setObjectName( QString::fromUtf8("ViewerCurrentFrame") );
     _imp->currentFrameBox->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
     _imp->currentFrameBox->setToolTip( QString::fromUtf8("<p><b>") + tr("Current frame number") + QString::fromUtf8("</b></p>") );
 
@@ -1017,6 +1020,9 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
 
     _imp->playerLayout->addWidget(_imp->playBackOutputSpinbox);
     _imp->playerLayout->addWidget(_imp->playBackOutputButton);
+
+    // Light icons: the stock player glyphs are black, invisible on a dark panel.
+    natronLightenButtonIcons(_imp->playerButtonsContainer);
 
 
     /*=================================================*/
