@@ -17,7 +17,7 @@
 > | **Reformat in Nuke's layout** | *Center / Flip / Flop / Turn* on the *Resize Type* line, *Preserve BBox* next to *Black outside* (patch of openfx-misc, applied by `tools/win-build`). |
 > | **Postage Stamp** (Node tab) | Every node can show a small image of its output on its box in the node graph, like Nuke's postage stamps (the former *Preview* checkbox, renamed, saved with the project and kept up to date even with the project's auto-previews off). |
 > | **Viewer playback bar** | Light icons instead of black ones; with the Nuketron theme the bar is flat and translucent (borderless buttons, hover / checked highlights, orange current frame). |
-> | **Nuketron theme** (`Themes` menu) | A Nuke-like look: Nuke greys, orange selection / active tabs / menus, yellow section titles, flat grey timeline with an orange playhead. *Themes → Nuketron* applies it live (Preferences colours + stylesheet), *Themes → Natron default* restores the stock look. Themes live in `<Natron>/Themes/` (one `.qss` per folder). |
+> | **Nuketron theme** | A Nuke-like look: Nuke greys, orange selection / active tabs / menus, yellow section titles, flat grey timeline with an orange playhead. Themes live in `<Natron>/Themes/` (one `.qss` per folder); pick one in *Preferences → Appearance → Stylesheet file*. |
 > | **Modern ACES configs bundled** | The official OpenColorIO ACES configs are shipped in `Resources/OpenColorIO-Configs/`: `aces_2.1_cg`, `aces_2.1_studio`, `aces_1.3_cg`, `aces_1.3_studio` (copied verbatim from OpenColorIO's built-in configs, BSD-3-Clause). Pick one in *Preferences → Color Management*; the viewer's OCIO display/view menu then offers the ACES output transforms. |
 > | **Windows build on MSYS2 UCRT64** | MSYS2 deprecated the MINGW64 environment and has been removing its packages (PySide6, OpenImageIO, OpenColorIO…) since October 2026, so `tools/win-build` failed with "target not found". The scripts and CMake files now follow the MSYS2 environment (UCRT64), install `clang` for shiboken6, and stop with a clear message in the wrong terminal. |
 >
@@ -65,7 +65,7 @@ If you've found this fork useful, consider buying me a beer :) **[Ko-fi](https:/
 | Depth of field | 2 | **LensDefocus** (physically based DOF: camera-driven blur, real lens designs ray traced through their glass, tilt-shift, GPU option) and DeepDefocus on deep images; Cycles can shoot through the same lenses |
 | Colour + transform | 5 | GPU OCIO ACES views in the viewer (tested on the ACES 2.0 reference config), ColorChartMatch, SphericalTransform (8 projections), LensWarp |
 
-Templates menu: ready-made graphs for a basic 3D scene, the Megascans loader, Fast Volume Render, particle presets, and an HDRI face-edit rig.
+Templates menu (hidden in this fork's menu bar): ready-made graphs for a basic 3D scene, the Megascans loader, Fast Volume Render, particle presets, and an HDRI face-edit rig.
 
 **Underlying upgrades:** Qt5 → Qt6 + PySide6, Python 3.14, OpenGL 2.0 → 4.3 (compatibility profile), Eigen 3.4, C++17.
 

@@ -62,15 +62,14 @@ add_custom_command(TARGET Natron POST_BUILD
             "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/3DE_Lens_Import"
     COMMENT "Copying 3DE Lens Import PyPlug to ${CMAKE_BINARY_DIR}/Plugins/PyPlugs/3DE_Lens_Import/")
 # Themes (Nuke-like "nuketron" stylesheet) at the build root, like the install's
-# <Natron>/Themes, plus the PyPlug that adds the Themes menu.
+# <Natron>/Themes. The Themes menu PyPlug is no longer installed (removed from older builds).
 add_custom_command(TARGET Natron POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/Gui/Resources/Themes"
             "${CMAKE_BINARY_DIR}/Themes"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/Gui/Resources/PyPlugs/Nuketron_Theme"
+    COMMAND ${CMAKE_COMMAND} -E remove_directory
             "${CMAKE_BINARY_DIR}/Plugins/PyPlugs/Nuketron_Theme"
-    COMMENT "Copying Themes/ and the Themes menu PyPlug to ${CMAKE_BINARY_DIR}")
+    COMMENT "Copying Themes/ to ${CMAKE_BINARY_DIR} (no Themes menu: set the .qss in Preferences)")
 if(APPLE)
     set_target_properties(Natron PROPERTIES
         MACOSX_BUNDLE TRUE

@@ -103,8 +103,9 @@ fi
 # Drop the upstream .git metadata — it shouldn't ship in a deployable
 # bundle (and adds ~100 MB of dead weight).
 rm -rf "$I/Plugins/PyPlugs/.git"
-# Community PyPlugs left out: Shuffle_N (superseded by the Shuffle node's Wire / Classic modes).
-for drop in Channel/Shuffle_N; do
+# PyPlugs left out: Shuffle_N (superseded by the Shuffle node's Wire / Classic modes),
+# Nuketron_Theme (the Themes menu, removed; the themes stay in <Natron>/Themes).
+for drop in Channel/Shuffle_N Nuketron_Theme; do   # Nuketron_Theme: former Themes menu
   if [ -e "$I/Plugins/PyPlugs/$drop" ]; then rm -rf "$I/Plugins/PyPlugs/$drop"; ok "  left out PyPlug $drop"; fi
 done
 
@@ -149,15 +150,12 @@ if [ -d "$OCIO_EXTRA" ]; then
 fi
 
 # --- Themes (stylesheets) at the install root: <Natron>/Themes/<name>/<name>.qss ---
-# The Themes menu PyPlug (Nuketron_Theme) comes with the PyPlugs copy above.
+# No Themes menu: pick the .qss in Preferences > Appearance > Stylesheet file.
 THEMES_SRC="$NATRON_ROOT/Natron/Gui/Resources/Themes"
 if [ -d "$THEMES_SRC" ]; then
   log "Themes (Gui/Resources/Themes)"
   mkdir -p "$I/Themes"; cp -r "$THEMES_SRC/." "$I/Themes/"   # keeps themes you added yourself
   ok "  $(ls -d "$I/Themes"/*/ 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
-fi
-if [ ! -f "$I/Plugins/PyPlugs/Nuketron_Theme/initGui.py" ] && [ -d "$NATRON_ROOT/Natron/Gui/Resources/PyPlugs/Nuketron_Theme" ]; then
-  cp -r "$NATRON_ROOT/Natron/Gui/Resources/PyPlugs/Nuketron_Theme" "$I/Plugins/PyPlugs/"
 fi
 
 # --- Strip debug symbols from the staged binaries (build-qt6 keeps them) ---

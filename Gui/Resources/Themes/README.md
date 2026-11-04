@@ -14,11 +14,10 @@ The fork's install puts this folder at the root of the install
 
 ## Applying a theme
 
-- **Menu `Themes > Nuketron`** (PyPlug `Plugins/PyPlugs/Nuketron_Theme`): sets the
-  colours *and* the stylesheet file, live, and saves the preferences.
-  **`Themes > Natron default`** puts everything back.
-- By hand: Preferences > Appearance > Stylesheet file = `<Natron>/Themes/nuketron/nuketron.qss`
-  (colours stay whatever they are in Preferences).
+Preferences > Appearance > **Stylesheet file** = `<Natron>/Themes/nuketron/nuketron.qss`,
+then Save. Clear the field to go back to Natron's look. The theme hard-codes its
+greys; the few colours it takes from Preferences (selection, keyframes...) keep
+their Natron defaults, which already use Nuke's orange.
 
 ## Writing a theme
 
