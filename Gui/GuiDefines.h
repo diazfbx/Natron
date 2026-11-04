@@ -51,6 +51,10 @@
 #define NATRON_FONT "Droid Sans"
 #define NATRON_FONT_ALT "Droid Sans"
 #define NATRON_SCRIPT_FONT "Courier New"
+// diazfbx fork: default UI font Verdana 9 (Nuke-like) when Verdana is installed
+// (always on Windows); otherwise NATRON_FONT at NATRON_UI_FONT_SIZE_DEFAULT.
+#define NATRON_UI_FONT_PREFERRED "Verdana"
+#define NATRON_UI_FONT_SIZE_DEFAULT 9
 #define NATRON_FONT_SIZE_6 6
 #define NATRON_FONT_SIZE_8 8
 #define NATRON_FONT_SIZE_10 10

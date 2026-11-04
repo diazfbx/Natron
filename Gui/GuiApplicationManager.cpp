@@ -863,7 +863,10 @@ GuiApplicationManager::initGui(const CLArgs& args)
         qDebug() << "fontID=" << fontID << "families=" << QFontDatabase::applicationFontFamilies(fontID);
     }
     QString fontFamily = QString::fromUtf8(NATRON_FONT);
-    int fontSize = NATRON_FONT_SIZE_11;
+    if ( QFontDatabase::families().contains( QString::fromUtf8(NATRON_UI_FONT_PREFERRED) ) ) {
+        fontFamily = QString::fromUtf8(NATRON_UI_FONT_PREFERRED);
+    }
+    int fontSize = NATRON_UI_FONT_SIZE_DEFAULT;
 
 
     ///Do not load old font stored in the setting "systemFont" on Natron < 2 because it might contain a crappy font.

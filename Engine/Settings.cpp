@@ -1817,7 +1817,7 @@ Settings::setDefaultValues()
 
     // Appearance
     _systemFontChoice->setDefaultValue(0);
-    _fontSize->setDefaultValue(NATRON_FONT_SIZE_DEFAULT);
+    _fontSize->setDefaultValue(NATRON_UI_FONT_SIZE_DEFAULT);
     //_qssFile
     //_defaultAppearanceVersion
 
@@ -3138,8 +3138,15 @@ Settings::populateSystemFonts(const QSettings& settings,
     _systemFontChoice->populateChoices(options);
     _scriptEditorFontChoice->populateChoices(options);
 
+    // Default UI font: Verdana when installed, else Natron's Droid Sans.
+    bool hasPreferredFont = false;
     for (U32 i = 0; i < fonts.size(); ++i) {
-        if (fonts[i] == NATRON_FONT) {
+        if (fonts[i] == NATRON_UI_FONT_PREFERRED) {
+            hasPreferredFont = true;
+        }
+    }
+    for (U32 i = 0; i < fonts.size(); ++i) {
+        if (fonts[i] == (hasPreferredFont ? NATRON_UI_FONT_PREFERRED : NATRON_FONT)) {
             _systemFontChoice->setDefaultValue(i);
         }
         if (fonts[i] == NATRON_SCRIPT_FONT) {
