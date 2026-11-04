@@ -32,6 +32,8 @@
 >
 > The result is a self-contained `Natron-install/` folder (run `bin/Natron.exe` — same layout as the release archives: `bin/`, `lib/`, `Plugins/`, `Resources/`), which can be zipped and shared. See [tools/win-build/README.md](tools/win-build/README.md) and [BUILDING.md](BUILDING.md).
 >
+> **Vibe coded.** Like Niik-l's work underneath it, everything this fork adds was vibe coded: I'm a VFX artist, not a developer, and the code was written with an AI assistant (Claude) from my descriptions, screenshots and test scenes, then tested by me in production use. Expect rough edges and report them.
+>
 > **Status.** These additions are recent: the Cryptomatte node and the UCRT64 build changes have not been through a full release cycle yet. Please report problems in this fork's issues, and anything that also affects Niik-l's build in [Niik-l's issues](https://github.com/Niik-l/Natron/issues).
 
 ---
