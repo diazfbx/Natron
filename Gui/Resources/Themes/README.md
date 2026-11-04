@@ -10,7 +10,7 @@ The fork's install puts this folder at the root of the install
 
 | Theme | Look |
 |---|---|
-| `nuketron` | Nuke-like: Nuke greys, orange selection / active tabs / menus, yellow section titles, pale tooltips, flat grey timeline with an orange playhead |
+| `nuketron` | Nuke-like, based on a user-made `mainstyle_NUKE.qss` (flat square tabs and tooltips, gradient buttons, thin splitters, light frame around the selected properties panel): Nuke greys, orange selection / active tabs / menus, yellow section titles, pale tooltips, flat grey timeline with an orange playhead |
 
 ## Applying a theme
 
