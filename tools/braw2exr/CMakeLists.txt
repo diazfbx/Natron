@@ -37,21 +37,19 @@ if(WIN32)
         endif()
         get_filename_component(_widl_dir "${WIDL}" DIRECTORY)
         set(_widl_inc -I "${_widl_dir}/../include" -I "${BRAW_INCLUDE_DIR}")
-        execute_process(COMMAND "${WIDL}" ${_widl_inc} -h -o "${BRAW_GEN_DIR}/BlackmagicRawAPI.h" "${BRAW_IDL}"
+        # widl (unlike MIDL) rejects "long long" and needs stdole2.tlb for
+        # importlib: compile a build-folder copy with __int64 (same type) and
+        # without the importlib line (only used for type libraries).
+        file(READ "${BRAW_IDL}" _idl)
+        string(REPLACE "unsigned long long" "unsigned __int64" _idl "${_idl}")
+        string(REPLACE "long long" "__int64" _idl "${_idl}")
+        string(REGEX REPLACE "importlib[^\n]*" "" _idl "${_idl}")
+        set(_gen_idl "${BRAW_GEN_DIR}/BlackmagicRawAPI.idl")
+        file(WRITE "${_gen_idl}" "${_idl}")
+        execute_process(COMMAND "${WIDL}" ${_widl_inc} -h -o "${BRAW_GEN_DIR}/BlackmagicRawAPI.h" "${_gen_idl}"
                         RESULT_VARIABLE _r1 ERROR_VARIABLE _e1)
-        execute_process(COMMAND "${WIDL}" ${_widl_inc} -u -o "${BRAW_GEN_DIR}/BlackmagicRawAPI_i.c" "${BRAW_IDL}"
+        execute_process(COMMAND "${WIDL}" ${_widl_inc} -u -o "${BRAW_GEN_DIR}/BlackmagicRawAPI_i.c" "${_gen_idl}"
                         RESULT_VARIABLE _r2 ERROR_VARIABLE _e2)
-        if(NOT _r1 EQUAL 0 OR NOT _r2 EQUAL 0)
-            # widl may not find stdole2.tlb (importlib, only needed for type
-            # libraries): retry on a build-folder copy without that line.
-            file(READ "${BRAW_IDL}" _idl)
-            string(REGEX REPLACE "importlib[^\n]*" "" _idl "${_idl}")
-            file(WRITE "${BRAW_GEN_DIR}/BlackmagicRawAPI.idl" "${_idl}")
-            execute_process(COMMAND "${WIDL}" ${_widl_inc} -h -o "${BRAW_GEN_DIR}/BlackmagicRawAPI.h" "${BRAW_GEN_DIR}/BlackmagicRawAPI.idl"
-                            RESULT_VARIABLE _r1 ERROR_VARIABLE _e1)
-            execute_process(COMMAND "${WIDL}" ${_widl_inc} -u -o "${BRAW_GEN_DIR}/BlackmagicRawAPI_i.c" "${BRAW_GEN_DIR}/BlackmagicRawAPI.idl"
-                            RESULT_VARIABLE _r2 ERROR_VARIABLE _e2)
-        endif()
         if(NOT _r1 EQUAL 0 OR NOT _r2 EQUAL 0)
             file(REMOVE "${BRAW_GEN_DIR}/BlackmagicRawAPI.h")
             message(FATAL_ERROR "widl failed on ${BRAW_IDL}:\n${_e1}\n${_e2}")
