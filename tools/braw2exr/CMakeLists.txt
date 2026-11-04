@@ -44,6 +44,8 @@ if(WIN32)
         string(REPLACE "unsigned long long" "unsigned __int64" _idl "${_idl}")
         string(REPLACE "long long" "__int64" _idl "${_idl}")
         string(REGEX REPLACE "importlib[^\n]*" "" _idl "${_idl}")
+        # MIDL brings SAFEARRAY / VARIANT in through stdole2; widl needs oaidl.idl
+        string(REPLACE "import \"unknwn.idl\";" "import \"unknwn.idl\";\nimport \"oaidl.idl\";" _idl "${_idl}")
         set(_gen_idl "${BRAW_GEN_DIR}/BlackmagicRawAPI.idl")
         file(WRITE "${_gen_idl}" "${_idl}")
         execute_process(COMMAND "${WIDL}" ${_widl_inc} -h -o "${BRAW_GEN_DIR}/BlackmagicRawAPI.h" "${_gen_idl}"
