@@ -19,7 +19,12 @@ fi
 # The Windows SDK ships an IDL file: widl (MSYS2 tools-git) generates the header.
 if [ -f "$SDK/Include/BlackmagicRawAPI.idl" ] && ! command -v widl >/dev/null 2>&1; then
     echo "Installing widl (IDL compiler) ..."
-    pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-tools-git"
+    case "${MSYSTEM:-UCRT64}" in
+        MINGW64) PKG=mingw-w64-x86_64 ;;
+        CLANG64) PKG=mingw-w64-clang-x86_64 ;;
+        *)       PKG=mingw-w64-ucrt-x86_64 ;;
+    esac
+    pacman -S --needed --noconfirm "$PKG-tools-git"
 fi
 rm -f "$BUILD/CMakeCache.txt"   # a previous failed configure
 cmake -S "$HERE" -B "$BUILD" -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DBRAW_SDK_DIR="$SDK"
