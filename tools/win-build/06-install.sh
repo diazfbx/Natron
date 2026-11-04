@@ -165,6 +165,38 @@ if [ -d "$THEMES_SRC" ]; then
   ok "  $(ls -d "$I/Themes"/*/ 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
 fi
 
+# --- braw2exr (Blackmagic RAW import), when built with tools/braw2exr/build.sh ---
+# It and the Blackmagic RAW runtime DLLs (redistributable "API Libraries" of
+# Blackmagic's SDK licence, cl. 1.1(d)) go next to Natron.exe. Nothing is done
+# when braw2exr was not built: the BRAW import then offers its build steps.
+BRAW_EXE="$NATRON_ROOT/Natron/tools/braw2exr/build/braw2exr.exe"
+BRAW_LIBS="${BRAW_SDK_DIR:-/c/Program Files (x86)/Blackmagic Design/Blackmagic RAW/Blackmagic RAW SDK/Win}/Libraries"
+if [ -f "$BRAW_EXE" ]; then
+  log "braw2exr + Blackmagic RAW runtime"
+  cp "$BRAW_EXE" "$BIN/"
+  if [ -d "$BRAW_LIBS" ]; then
+    cp "$BRAW_LIBS"/*.dll "$BIN/" && ok "  runtime DLLs from $BRAW_LIBS"
+  else
+    warn "  Blackmagic RAW SDK libraries not found ($BRAW_LIBS): braw2exr needs BlackmagicRawAPI.dll"
+  fi
+  cp "$NATRON_ROOT/Natron/tools/braw2exr/LICENSE" "$I/Licenses/braw2exr-LICENSE.txt"
+  cat > "$I/Licenses/BlackmagicRAW-NOTICE.txt" <<'NOTICE'
+braw2exr (bin/braw2exr.exe) converts Blackmagic RAW clips to OpenEXR for the
+Natron BRAW import. It is a separate MIT-licensed program, compatible with
+Blackmagic RAW; it is not a Blackmagic Design product.
+
+The Blackmagic RAW runtime libraries shipped next to it (BlackmagicRawAPI.dll,
+DecoderCUDA.dll, DecoderOpenCL.dll, InstructionSetServicesAVX*.dll) are
+Copyright (c) Blackmagic Design Pty. Ltd., all rights reserved, distributed
+under the Blackmagic RAW SDK Developer License Agreement (redistributable API
+libraries). They may not be modified, reverse engineered or used other than
+with this software. Blackmagic Design, Blackmagic and Blackmagic RAW are
+trademarks of Blackmagic Design Pty. Ltd.
+https://www.blackmagicdesign.com/developer/products/braw
+NOTICE
+  ok "  braw2exr installed"
+fi
+
 # --- Strip debug symbols from the staged binaries (build-qt6 keeps them) ---
 if [ "${STRIP_INSTALL:-1}" = "1" ]; then
   log "Stripping debug symbols from the staged binaries (STRIP_INSTALL=1)"
