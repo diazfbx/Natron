@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""3DE Lens Import pour Natron - menu "3DE > Import Lens Distortion LDE4 (.nk)".
+"""3DE Lens Import pour Natron - menu "3DE > Import Lens Distortion 3DE4 (.nk)".
 
 Installation : copier le dossier 3DE_Lens_Import dans <Natron>/Plugins/PyPlugs (ou dans ~/.Natron),
 puis redemarrer Natron. Natron execute automatiquement ce initGui.py au demarrage.
@@ -19,7 +19,36 @@ import traceback
 
 import NatronEngine
 
-PLUGIN_ID = "net.sf.openfx.LensDistortion"
+PLUGIN_ID = "net.sf.openfx.LensDistortion"   # repli : Natron sans le node LD_3DE4
+
+# Node LD_3DE4 du fork (LDPK 2.12) : tous les modeles 3DE, noms de parametres = ceux de Nuke.
+LD3DE4_ID = "fr.inria.built-in.LD3DE4"
+# Meme ordre que le menu Model du node (Engine/Dev/Transform/LD3DE4.cpp, kModels).
+LD3DE4_CLASSES = [
+    "LD_3DE4_Radial_Standard_Degree_4",
+    "LD_3DE4_Radial_Stabilizer_Degree_6",
+    "LD_3DE4_Radial_Homomorphic_Degree_2",
+    "LD_3DE4_Radial_Fisheye_Degree_8",
+    "LD_3DE4_Radial_Fisheye_Equidistant_Degree_8",
+    "LD_3DE4_Radial_Fisheye_Equisolid_Degree_8",
+    "LD_3DE4_Radial_Fisheye_Orthographic_Degree_8",
+    "LD_3DE4_Radial_Fisheye_Stereographic_Degree_8",
+    "LD_3DE4_Anamorphic_Standard_Degree_4",
+    "LD_3DE4_Anamorphic_Standard_Degree_6",
+    "LD_3DE4_Anamorphic_Rescaled_Degree_4",
+    "LD_3DE4_Anamorphic_Rescaled_Degree_6",
+    "LD_3DE4_Anamorphic_Stabilizer_Degree_6",
+    "LD_3DE4_Anamorphic_Degree_6",
+    "LD_3DE4_Anamorphic_Homomorphic_Degree_2",
+    "LD_3DE4_Brown_Conrady_Degree_6_2",
+    "LD_OpenCV_Radial_Degree_6_Decentered_Degree_2",
+    "LD_3DE_Classic_LD_Model",
+]
+# knobs Nuke propres a l'affichage / au node, sans equivalent
+LD3DE4_SKIP = {"name", "label", "xpos", "ypos", "selected", "inputs", "direction", "note_font",
+               "tile_color", "gl_color", "disable", "help", "onCreate", "knobChanged", "filter",
+               "cards", "output", "mode", "lut_cache_values", "bbox_mode",
+               "bounding_box_margin_px", "version"}
 
 # classe Nuke -> (identifiant du modele Natron, libelle, index de repli)
 MODELS = {
@@ -115,7 +144,8 @@ def parse_nk(text):
     toks = _tokenize(text)
     nodes = []
     for i, tok in enumerate(toks[:-1]):
-        if tok in MODELS or (tok.startswith("LD_3DE") and toks[i + 1].startswith("{")):
+        if (tok in MODELS or tok in LD3DE4_CLASSES or tok.startswith("LD_3DE") or tok.startswith("LD_OpenCV")) \
+                and toks[i + 1].startswith("{"):
             body = _tokenize(toks[i + 1][1:-1])
             params, k = {}, 0
             while k < len(body) - 1:
@@ -160,25 +190,78 @@ def _natron_names(nuke_name):
     return ["tde4_" + nuke_name, nuke_name]
 
 
+def _create_ld3de4(app, nd, log):
+    """Node LD_3DE4 (tous les modeles) ; None si ce Natron ne l'a pas ou modele inconnu."""
+    if nd["class"] not in LD3DE4_CLASSES:
+        return None
+    try:
+        node = app.createNode(LD3DE4_ID)
+    except Exception:
+        node = None
+    if node is None:
+        return None
+    node.getParam("ldModel").setValue(LD3DE4_CLASSES.index(nd["class"]))
+    undist = nd["direction"].startswith("un")
+    node.getParam("direction").setValue(1 if undist else 0)   # 0 distort, 1 undistort (Nuke)
+    missing = []
+    for key, val in nd["params"].items():
+        if key in LD3DE4_SKIP or val is None or isinstance(val, str):
+            continue
+        for pname in (key, "tde4_" + key):
+            prm = node.getParam(pname)
+            if prm is not None:
+                try:
+                    _set(prm, val)
+                except Exception:
+                    log("Echec %s = %s\n%s" % (pname, val, traceback.format_exc()))
+                break
+        else:
+            missing.append(key)
+    if missing:
+        log("%s : parametres non repris : %s" % (nd["name"], ", ".join(missing)))
+    return node
+
+
+def _finish(node, nd, input_node, idx):
+    """Nom, label, branchement et position, communs aux deux types de node."""
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", nd["name"]) or "LD_3DE"
+    try:
+        node.setScriptName(safe)
+    except Exception:
+        pass
+    try:
+        node.setLabel(nd["name"])
+    except Exception:
+        pass
+    if input_node is not None:
+        try:
+            node.connectInput(0, input_node)
+        except Exception:
+            pass
+        try:
+            x, y = input_node.getPosition()
+            node.setPosition(x, y + 80 + idx * 60)
+        except Exception:
+            pass
+
+
 def create_nodes(app, nodes, input_node=None, log=print):
     created = []
     for idx, nd in enumerate(nodes):
+        node = _create_ld3de4(app, nd, log)
+        if node is not None:
+            _finish(node, nd, input_node, idx)
+            created.append(node)
+            log("Cree %s (LD_3DE4, %s, %s)" % (node.getScriptName(), nd["class"], nd["direction"]))
+            continue
         model = MODELS.get(nd["class"])
         if model is None:
-            log("Modele 3DE non supporte par Natron : %s (node ignore)" % nd["class"])
+            log("Modele 3DE non supporte : %s (node ignore)" % nd["class"])
             continue
         node = app.createNode(PLUGIN_ID)
         if node is None:
             raise RuntimeError("Impossible de creer le node LensDistortion (%s)" % PLUGIN_ID)
         safe = re.sub(r"[^A-Za-z0-9_]", "_", nd["name"]) or "LD_3DE"
-        try:
-            node.setScriptName(safe)
-        except Exception:
-            pass
-        try:
-            node.setLabel(nd["name"])
-        except Exception:
-            pass
 
         p = node.getParam("model")
         p.setValue(_choice_index(p, model[0], model[1], model[2]))
@@ -204,16 +287,7 @@ def create_nodes(app, nodes, input_node=None, log=print):
         if missing:
             log("%s : parametres sans equivalent Natron : %s" % (nd["name"], ", ".join(missing)))
 
-        if input_node is not None:
-            try:
-                node.connectInput(0, input_node)
-            except Exception:
-                pass
-            try:
-                x, y = input_node.getPosition()
-                node.setPosition(x, y + 80 + idx * 60)
-            except Exception:
-                pass
+        _finish(node, nd, input_node, idx)
         created.append(node)
         log("Cree %s (%s, %s)" % (safe, model[1], "undistort" if undist else "distort"))
     return created
@@ -412,7 +486,7 @@ def _tde_register():
     if getattr(NatronGui, "_tde_lens_menu_done", False):
         return
     # pas de raccourci : il demanderait PySide, qui fait planter certaines versions de Natron
-    NatronGui.natron.addMenuCommand("3DE/Import Lens Distortion LDE4 (.nk)", "tde_lens_import_nk")
+    NatronGui.natron.addMenuCommand("3DE/Import Lens Distortion 3DE4 (.nk)", "tde_lens_import_nk")
     NatronGui._tde_lens_menu_done = True
 
 
