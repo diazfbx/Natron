@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Phase 06 — assemble a clean, relocatable install into $INSTALL_DIR.
-# Layout mirrors what Natron resolves relative to its binary:
-#   App/Natron.exe + DLLs + platforms/ ;  lib/pythonX.Y ;  Plugins/ ;  Resources/
+# Layout = the release archives' (and what Natron resolves relative to its binary):
+#   bin/Natron.exe + bin/NatronRenderer.exe + ONE set of DLLs + platforms/ + imageformats/ ;
+#   lib/pythonX.Y ;  Plugins/ ;  Resources/ ;  etc/
+# (Earlier versions of this script staged App/ and Renderer/ with two copies of the
+# DLLs, ~1.3 GB each; those folders are removed when found.)
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$HERE/config.sh"; source "$HERE/lib.sh"
 require_mingw
@@ -12,7 +15,12 @@ PYV="$(py_ver)"   # e.g. 3.14
 [ -f "$B/App/Natron.exe" ] || die "build output missing ($B/App/Natron.exe) — run 04-natron.sh first"
 
 log "Staging install into $I (python $PYV)"
-mkdir -p "$I/App/platforms" "$I/lib" \
+# Older App/ + Renderer/ layout from previous runs: replaced by bin/.
+for old in App Renderer; do
+  if [ -d "$I/$old" ]; then rm -rf "$I/$old"; ok "removed the old $old/ folder (now bin/)"; fi
+done
+BIN="$I/bin"
+mkdir -p "$BIN/platforms" "$I/lib" \
          "$I/Plugins/OFX/Natron" "$I/Plugins/PyPlugs" "$I/Resources"
 
 # OIDN loads its CPU device module at runtime by the UN-prefixed name, but
@@ -26,50 +34,38 @@ fix_oidn() { # dir
 }
 
 # --- GUI binary + bundled DLLs + Qt platform plugin ---
-log "App: binary + DLLs"
-cp "$B/App/Natron.exe" "$I/App/"
-cp "$MINGW"/bin/*.dll "$I/App/"
-fix_oidn "$I/App"
-cp "$MINGW/share/qt6/plugins/platforms/qwindows.dll" "$I/App/platforms/"
+log "bin: Natron.exe + DLLs"
+cp "$B/App/Natron.exe" "$BIN/"
+cp "$MINGW"/bin/*.dll "$BIN/"
+fix_oidn "$BIN"
+cp "$MINGW/share/qt6/plugins/platforms/qwindows.dll" "$BIN/platforms/"
 # Qt image-format plugins: Qt has only PNG/BMP/PPM built in; JPEG, TIFF, WebP, SVG,
 # GIF, ICO... are plugins. Natron itself reads images through OpenImageIO, but
 # PySide6 scripts and PyPlugs using QImage/QPixmap had no JPEG writer in the
 # portable (user report 2026-10-04). The Linux AppImage already bundles the set.
 # Their extra DLLs (libmng-2, Qt6Svg) come with the bin/*.dll sweep above.
-mkdir -p "$I/App/imageformats"
-cp "$MINGW"/share/qt6/plugins/imageformats/*.dll "$I/App/imageformats/"
+mkdir -p "$BIN/imageformats"
+cp "$MINGW"/share/qt6/plugins/imageformats/*.dll "$BIN/imageformats/"
 
-# --- Headless renderer (optional) ---
+# --- Headless renderer (optional): same folder, shares the DLLs ---
 if [ "${STAGE_RENDERER:-1}" = "1" ]; then
-  log "Renderer: binary + DLLs"
-  mkdir -p "$I/Renderer/platforms"
-  cp "$B/Renderer/NatronRenderer.exe" "$I/Renderer/"
-  cp "$MINGW"/bin/*.dll "$I/Renderer/"
-  fix_oidn "$I/Renderer"
-  cp "$MINGW/share/qt6/plugins/platforms/qwindows.dll" "$I/Renderer/platforms/"
-  mkdir -p "$I/Renderer/imageformats"
-  cp "$MINGW"/share/qt6/plugins/imageformats/*.dll "$I/Renderer/imageformats/"
+  log "bin: NatronRenderer.exe"
+  cp "$B/Renderer/NatronRenderer.exe" "$BIN/"
 fi
 
 # FastVolumeRender runtime: wgpu-native isn't an MSYS2 package, so the DLL
 # must come from the build's wgpu dir (only present when the node was built).
 if [ -f "$NATRON_ROOT/wgpu/wgpu_native.dll" ]; then
-  cp "$NATRON_ROOT/wgpu/wgpu_native.dll" "$I/App/"
-  if [ "${STAGE_RENDERER:-1}" = "1" ]; then
-    cp "$NATRON_ROOT/wgpu/wgpu_native.dll" "$I/Renderer/"
-  fi
+  cp "$NATRON_ROOT/wgpu/wgpu_native.dll" "$BIN/"
   ok "staged wgpu_native.dll (FastVolumeRender)"
 fi
 
 # Cycles GPU kernels (WITH_CUDA=1): Cycles loads them from lib/ next to the exe.
 KDIR="$NATRON_ROOT/cycles/build/src/kernel"
 if [ "${WITH_CUDA:-0}" = "1" ] && ls "$KDIR"/kernel_*.zst >/dev/null 2>&1; then
-  for d in App Renderer; do
-    [ -d "$I/$d" ] || continue   # Renderer/ only with STAGE_RENDERER=1
-    mkdir -p "$I/$d/lib"
-    cp "$KDIR"/kernel_*.zst "$I/$d/lib/"
-  done
-  ok "staged $(ls "$KDIR"/kernel_*.zst | wc -l) Cycles GPU kernels (App/lib, Renderer/lib)"
+  mkdir -p "$BIN/lib"
+  cp "$KDIR"/kernel_*.zst "$BIN/lib/"
+  ok "staged $(ls "$KDIR"/kernel_*.zst | wc -l) Cycles GPU kernels (bin/lib)"
 fi
 
 # --- Python standard library (+ PySide6, qtpy live in its site-packages) ---
@@ -151,7 +147,7 @@ fi
 # --- Strip debug symbols from the staged binaries (build-qt6 keeps them) ---
 if [ "${STRIP_INSTALL:-1}" = "1" ]; then
   log "Stripping debug symbols from the staged binaries (STRIP_INSTALL=1)"
-  for f in "$I/App/Natron.exe" "$I/Renderer/NatronRenderer.exe" $(find "$I/Plugins/OFX" -name '*.ofx' 2>/dev/null); do
+  for f in "$BIN/Natron.exe" "$BIN/NatronRenderer.exe" $(find "$I/Plugins/OFX" -name '*.ofx' 2>/dev/null); do
     [ -f "$f" ] || continue
     before=$(du -m "$f" | cut -f1)
     strip --strip-debug "$f" && ok "  $(basename "$f"): ${before} MB -> $(du -m "$f" | cut -f1) MB" \

@@ -24,7 +24,7 @@
 > bash build-all.sh
 > ```
 >
-> The result is a self-contained `Natron-install/` folder (run `App/Natron.exe`), which can be zipped and shared. See [tools/win-build/README.md](tools/win-build/README.md) and [BUILDING.md](BUILDING.md).
+> The result is a self-contained `Natron-install/` folder (run `bin/Natron.exe` — same layout as the release archives: `bin/`, `lib/`, `Plugins/`, `Resources/`), which can be zipped and shared. See [tools/win-build/README.md](tools/win-build/README.md) and [BUILDING.md](BUILDING.md).
 >
 > **Status.** These additions are recent: the Cryptomatte node and the UCRT64 build changes have not been through a full release cycle yet. Please report problems in this fork's issues, and anything that also affects Niik-l's build in [Niik-l's issues](https://github.com/Niik-l/Natron/issues).
 

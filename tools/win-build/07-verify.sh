@@ -9,8 +9,8 @@ SCRIPT="$HERE/verify_natron.py"
 export NATRON_PYPLUGS_DIR="$I/Plugins/PyPlugs"   # verify_natron.py checks every PyPlug's node IDs exist
 
 # Prefer the headless renderer; fall back to the GUI binary in interpreter mode.
-if [ -f "$I/Renderer/NatronRenderer.exe" ]; then BIN_DIR="$I/Renderer"; BIN="NatronRenderer.exe"
-elif [ -f "$I/App/Natron.exe" ];            then BIN_DIR="$I/App";      BIN="Natron.exe"
+if [ -f "$I/bin/NatronRenderer.exe" ]; then BIN_DIR="$I/bin"; BIN="NatronRenderer.exe"
+elif [ -f "$I/bin/Natron.exe" ];        then BIN_DIR="$I/bin"; BIN="Natron.exe"
 else die "no staged binary found in $I (run 06-install.sh first)"; fi
 
 log "Verifying $BIN_DIR/$BIN with a CLEAN PATH (proves standalone — DLLs must come from the bundle)"
@@ -65,6 +65,6 @@ for f in jpg tiff webp; do
 done
 ok "Qt image-format plugins present (jpg, tiff, webp)"
 
-if grep -qi "Failed to import qtpy" <<<"$out"; then warn "qtpy import warning present (check DLL bundling in App/ and Renderer/)"
+if grep -qi "Failed to import qtpy" <<<"$out"; then warn "qtpy import warning present (check DLL bundling in bin/)"
 else ok "qtpy OK"; fi
 ok "Phase 07 (verify) complete — install at $I is good"

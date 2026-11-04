@@ -12,7 +12,7 @@ I="$INSTALL_DIR"
 
 # Refuse to delete the sources unless the staged install looks complete —
 # a binary plus its runtime DLLs is the minimum proof 06-install ran through.
-[ -f "$I/App/Natron.exe" ] && [ -f "$I/App/libgcc_s_seh-1.dll" ] \
+[ -f "$I/bin/Natron.exe" ] && [ -f "$I/bin/libgcc_s_seh-1.dll" ] \
   || die "install at $I looks incomplete — run ./build-all.sh (through 07-verify) first"
 
 DOOMED=(Natron cycles openfx-misc openfx-io natron-plugins)

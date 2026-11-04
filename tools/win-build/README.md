@@ -45,7 +45,7 @@ build tree + sources, deletable afterward — see "Cleanup" below). `WITH_CYCLES
 under half that. When it finishes it prints:
 
 ```
-Launch: .../Natron-install/App/Natron.exe     ← double-click this
+Launch: .../Natron-install/bin/Natron.exe     ← double-click this
 ```
 
 **Only optional tweak:** to skip the long Cycles build, set `WITH_CYCLES=0` in `config.sh`
