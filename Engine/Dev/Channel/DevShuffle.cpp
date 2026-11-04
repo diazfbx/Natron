@@ -376,6 +376,7 @@ DevShuffle::initializeKnobs()
     {
         KnobShufflePtr k = AppManager::createKnob<KnobShuffle>(this, tr("Routing"));
         k->setName("shuffleRouting");
+        k->setEvaluateOnChange(false); // UI proxy: the routing ints render, this string must not
         k->setDefaultValue("0,1,2,3");
         k->setIsPersistent(false);
         mainPage->addKnob(k);
@@ -385,6 +386,7 @@ DevShuffle::initializeKnobs()
     {
         KnobShufflePtr k = AppManager::createKnob<KnobShuffle>(this, tr("Routing 2"));
         k->setName("shuffleRouting2");
+        k->setEvaluateOnChange(false); // UI proxy: the routing ints render, this string must not
         k->setDefaultValue("-1,-1,-1,-1");
         k->setIsPersistent(false);
         k->setSecret(true);
@@ -585,15 +587,8 @@ DevShuffle::refreshLayerChoices()
     discoverLayers(this, 0, _imp->cachedLayers, _imp->inputLayer, _imp->outputLayer);
     refreshClassicChoices();
 
-    // Trigger visual widget refresh
-    KnobIPtr shuffleKnob = getKnobByName("shuffleRouting");
-    if (shuffleKnob) {
-        KnobStringBase* strKnob = dynamic_cast<KnobStringBase*>(shuffleKnob.get());
-        if (strKnob) {
-            strKnob->setValue("_refresh");
-            strKnob->setValue("0,1,2,3");
-        }
-    }
+    // Refresh the wire widget (it re-reads the routing ints).
+    pushRoutingToWidget();
 }
 
 void
