@@ -226,6 +226,7 @@ DevShuffle::initializeKnobs()
         k->populateChoices(entries);
         k->setDefaultValue(0);
         k->setAnimationEnabled(false);
+        k->setEvaluateOnChange(false);   // UI only: does not change the image
         k->setHintToolTip(tr("Wire: drag cables between input and output channels.\n"
                               "Classic: pick the source of each output channel in a drop-down.\n"
                               "Both edit the same routing; switch at any time."));
@@ -399,6 +400,7 @@ DevShuffle::initializeKnobs()
             k->setName(names[c]);
             k->setAnimationEnabled(false);
             k->setIsPersistent(false); // proxy of outputR/G/B/A
+            k->setEvaluateOnChange(false); // the ints re-render; this one must not (it is resynced often)
             k->setHintToolTip(tr("Source of this output channel: a channel of B or A, "
                                   "0 (black) or 1 (white)."));
             k->setSecret(true);
