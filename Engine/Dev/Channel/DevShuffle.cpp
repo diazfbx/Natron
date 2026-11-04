@@ -987,7 +987,13 @@ DevShuffle::render(const RenderActionArgs& args)
         const bool isR2 = (planeId == r2Plane.getPlaneID());
         if (!isR1 && !isR2) continue; // plane we don't write to
 
-        const RectI outBounds = outImg->getBounds();
+        // Only the render window: the output image can be a cached image larger
+        // than what is asked now (Natron renders the missing rectangles of a
+        // cached image). Filling all of outBounds overwrote the already
+        // rendered parts with black where the source was not fetched -> nodes
+        // downstream (Grade, ColorCorrect, Glow) went black / stopped updating.
+        const RectI outBounds = args.roi.intersect( outImg->getBounds() );
+        if ( outBounds.isNull() ) continue;
         const int   outNumComp = outImg->getComponents().getNumComponents();
 
         Image::WriteAccess wa(outImg.get());
