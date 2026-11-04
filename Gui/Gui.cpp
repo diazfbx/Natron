@@ -634,7 +634,8 @@ Gui::createMenuActions()
     _imp->menubar->addAction( _imp->menuDisplay->menuAction() );
     _imp->menubar->addAction( _imp->menuRender->menuAction() );
     _imp->menubar->addAction( _imp->cacheMenu->menuAction() );
-    _imp->menubar->addAction( _imp->menuTemplates->menuAction() );
+    // Templates menu left out of the menu bar (diazfbx fork); built but not shown.
+    // _imp->menubar->addAction( _imp->menuTemplates->menuAction() );
     _imp->menubar->addAction( _imp->menuHelp->menuAction() );
 
 #ifdef __APPLE__
