@@ -2106,7 +2106,7 @@ Gui::showCameraRawDownloads()
         "(Natron finds them in their default folders, or asks for their location).</p>"
         "<p><b>RED .R3D</b> (File &gt; Import R3D): <b>REDCINE-X PRO</b>, which installs REDline<br>"
         "<a href=\"https://www.red.com/downloads\">https://www.red.com/downloads</a></p>"
-        "<p><b>ARRIRAW .ari / .arx / .mxf</b> (File &gt; Import ARRIRAW): <b>ARRI Reference Tool CMD</b> (art-cmd)<br>"
+        "<p><b>ARRIRAW .ari / .arx / .mxf</b> (File &gt; Import ARI / ARX / MXF): <b>ARRI Reference Tool CMD</b> (art-cmd)<br>"
         "<a href=\"https://www.arri.com/en/learn-help/learn-help-camera-system/tools/arri-reference-tool\">"
         "https://www.arri.com/en/learn-help/learn-help-camera-system/tools/arri-reference-tool</a></p>"
         "<p><b>Blackmagic RAW .braw</b> (File &gt; Import BRAW): <b>braw2exr</b> (tools/braw2exr of this fork), "
