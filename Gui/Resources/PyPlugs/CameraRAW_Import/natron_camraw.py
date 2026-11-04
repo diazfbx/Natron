@@ -592,7 +592,9 @@ def update_progress(job):
         p = min(0.99, done / float(total))
         _set_read_state(job, p, "%s  %d%%" % (job["name"], int(p * 100)))
     else:
-        _set_read_state(job, 0.0, "%s  %d frames" % (job["name"], done))
+        import time
+        p = (time.time() % 4.0) / 4.0     # total unknown: sweeping bar
+        _set_read_state(job, p, "%s  %d frames" % (job["name"], done))
 
 
 def arri_frame_count(tool, clip, start, duration):

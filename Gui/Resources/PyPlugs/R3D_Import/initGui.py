@@ -287,18 +287,59 @@ def _sequence_pattern(outdir, name):
 
 # ----------------------------------------------------------------------------- progress on the Read
 
-def clip_frame_count(redline, clip):
-    """Frames in the clip, from `REDline --printMeta 1` (None if not found)."""
-    try:
-        out = subprocess.run([redline, "--i", clip, "--printMeta", "1"], capture_output=True, text=True,
-                             timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        text = (out.stdout or "") + "\n" + (out.stderr or "")
-        m = re.search(r"(?:total\s*frames|frame\s*count|number\s*of\s*frames)\D{0,20}(\d+)", text, re.I)
-        if m and int(m.group(1)) > 0:
-            return int(m.group(1))
-    except Exception:
-        _log("REDline --printMeta failed\n" + traceback.format_exc())
+_FRAME_COUNT_RX = re.compile(
+    r"(?:total\s*frames?|frame\s*count|number\s*of\s*frames|frames?\s*total|clip\s*frames|num\s*frames|"
+    r"total\s*frame\s*count|frames)\s*[:=]?\s*(\d+)", re.I)
+
+
+def _parse_frame_count(text):
+    # "Total Frames: 120" style
+    for m in _FRAME_COUNT_RX.finditer(text):
+        n = int(m.group(1))
+        if n > 0:
+            return n
+    # CSV style (--printMeta 2/3): header row + value row
+    lines = [l for l in text.splitlines() if "," in l]
+    for i, line in enumerate(lines[:-1]):
+        cols = [c.strip().strip('"').lower() for c in line.split(",")]
+        for k, c in enumerate(cols):
+            if re.search(r"(total\s*frames|frame\s*count|number\s*of\s*frames)", c):
+                vals = lines[i + 1].split(",")
+                if k < len(vals) and vals[k].strip().strip('"').isdigit():
+                    return int(vals[k].strip().strip('"'))
+    # first / last frame numbers
+    f = re.search(r"first\s*frame\D{0,10}(\d+)", text, re.I)
+    l = re.search(r"last\s*frame\D{0,10}(\d+)", text, re.I)
+    if f and l and int(l.group(1)) >= int(f.group(1)):
+        return int(l.group(1)) - int(f.group(1)) + 1
     return None
+
+
+def clip_frame_count(redline, clip):
+    """Frames in the clip, from `REDline --printMeta` (None if not found).
+    The output is kept in ~/.Natron/r3d_printmeta.txt to check the format."""
+    text = ""
+    for mode in ("1", "2"):
+        try:
+            out = subprocess.run([redline, "--i", clip, "--printMeta", mode], capture_output=True, text=True,
+                                 timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            t = (out.stdout or "") + "\n" + (out.stderr or "")
+        except Exception:
+            _log("REDline --printMeta failed\n" + traceback.format_exc())
+            continue
+        text += "===== --printMeta %s =====\n%s\n" % (mode, t)
+        n = _parse_frame_count(t)
+        if n:
+            break
+    else:
+        n = None
+    try:
+        with open(os.path.join(os.path.dirname(_CFG), "r3d_printmeta.txt"), "w") as fh:
+            fh.write(text)
+    except Exception:
+        pass
+    _log("clip frame count: %s" % n)
+    return n
 
 
 def _frames_written(job):
@@ -342,7 +383,10 @@ def update_progress(job):
         p = min(0.99, done / float(total))
         _set_read_state(job, p, "%s  %d%%" % (job["name"], int(p * 100)))
     else:
-        _set_read_state(job, 0.0, "%s  %d frames" % (job["name"], done))
+        # Total unknown: a bar sweeping every 4 s shows it is working
+        import time
+        p = (time.time() % 4.0) / 4.0
+        _set_read_state(job, p, "%s  %d frames" % (job["name"], done))
 
 
 def create_read(job):
