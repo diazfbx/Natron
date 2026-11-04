@@ -6,6 +6,9 @@ tool REDline (installed with REDCINE-X PRO, under RED's own licence) converts
 a clip to an OpenEXR sequence that Natron reads natively. This PyPlug only
 *calls* REDline: no RED SDK code, headers or libraries are used or shipped.
 
+A Read given a .R3D (file dialog, drag & drop) calls r3d_on_read(): same
+options dialog, then the Read switches to the EXR sequence when REDline is done.
+
 Menu:
   R3D > Import R3D (REDline)...            convert a clip, then create its Read
   R3D > Create Reads (finished conversions) Reads for conversions run in the background
@@ -303,10 +306,10 @@ def r3d_poll():
             if rc != 0:
                 _message("REDline failed on %s (exit code %d): no Read created." % (job["name"], rc), error=True)
                 continue
-            if create_read(job) is None:
+            if not _finish_job(job):
                 _message("REDline finished %s but no EXR was found in %s." % (job["name"], job["outdir"]), error=True)
             else:
-                _message("Conversion finished: Read created for %s." % job["name"])
+                _message("Conversion finished: %s is loaded from its EXR sequence." % job["name"])
         cfg["pending"] = left
         _save(cfg)
         if still:
@@ -325,7 +328,7 @@ def create_pending_reads():
             running.append(job["name"])
             left.append(job)
             continue
-        if create_read(job) is not None:
+        if _finish_job(job):
             made.append(job["name"])
             _RUNNING.pop(job["outdir"], None)
         else:
@@ -392,55 +395,156 @@ def _dialog(app, clip):
     }
 
 
+def _get_redline(cfg):
+    redline = find_redline(cfg)
+    if not redline:
+        if _ask_download():
+            return None
+        redline = ask_redline(cfg)
+    return redline
+
+
+def _finish_job(job):
+    """Conversion done: point the Reads that asked for it to the EXR, else create one."""
+    reads = job.get("reads") or []
+    if not reads:
+        return create_read(job) is not None
+    pattern = _sequence_pattern(job["outdir"], job["name"])
+    if not pattern:
+        return False
+    app = _app()
+    done = False
+    for name in reads:
+        node = app.getNode(name)
+        if node is None:
+            continue
+        p = node.getParam("filename")
+        if p is not None:
+            p.setValue(pattern)
+            done = True
+            _log("%s -> %s" % (name, pattern))
+    if not done:   # the Read was deleted meanwhile: make a new one
+        return create_read(job) is not None
+    return True
+
+
+def start_conversion(clip, reads=None):
+    """Options dialog, then REDline. reads: script names of Reads to repoint when done."""
+    app = _app()
+    cfg = _load()
+    redline = _get_redline(cfg)
+    if not redline:
+        return
+    opts = _dialog(app, clip)
+    if not opts:
+        return
+    codes = probe_codes(redline, cfg)
+    name = os.path.splitext(os.path.basename(opts["clip"]))[0]
+    outdir = opts["outdir"]
+    os.makedirs(outdir, exist_ok=True)
+    args = build_args(redline, codes, opts["clip"], outdir, name, opts["res"], opts["color"],
+                      opts["comp"], opts["renum"], opts["start"], opts["end"],
+                      opts["rmd"], opts["extra"])
+    _log(" ".join('"%s"' % a if " " in a else a for a in args))
+    job = {"name": name, "outdir": outdir, "clip": opts["clip"], "ocio": COLORS[opts["color"]][2],
+           "reads": list(reads or [])}
+    if opts["wait"]:
+        res = subprocess.run(args, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if res.returncode != 0:
+            _message("REDline failed (exit %d). Command:\n%s" % (res.returncode, " ".join(args)), error=True)
+            return
+        if not _finish_job(job):
+            _message("REDline finished but no EXR was found in " + outdir, error=True)
+        return
+    # Background: REDline's own console shows the progress.
+    proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+    _RUNNING[outdir] = proc
+    cfg = _load()
+    cfg.setdefault("pending", [])
+    cfg["pending"] = [j for j in cfg["pending"] if j["outdir"] != outdir] + [job]
+    _save(cfg)
+    what = "The Read switches to the EXR sequence" if reads else "The Read is created"
+    if _schedule_poll():
+        _message("Conversion started (see the REDline window).\n" + what + " automatically when it is finished.")
+    else:
+        _message("Conversion started (see the REDline window).\n"
+                 "When it is finished: R3D > Create Reads (finished conversions).")
+
+
 def import_r3d():
     try:
         app = _app()
         cfg = _load()
-        redline = find_redline(cfg)
-        if not redline:
-            if _ask_download():
-                return
-            redline = ask_redline(cfg)
-            if not redline:
-                return
+        if not _get_redline(cfg):
+            return
         clip = app.getFilenameDialog(["R3D", "r3d"])
-        if not clip:
-            return
-        opts = _dialog(app, clip)
-        if not opts:
-            return
-        codes = probe_codes(redline, cfg)
-        name = os.path.splitext(os.path.basename(opts["clip"]))[0]
-        outdir = opts["outdir"]
-        os.makedirs(outdir, exist_ok=True)
-        args = build_args(redline, codes, opts["clip"], outdir, name, opts["res"], opts["color"],
-                          opts["comp"], opts["renum"], opts["start"], opts["end"],
-                          opts["rmd"], opts["extra"])
-        _log(" ".join('"%s"' % a if " " in a else a for a in args))
-        job = {"name": name, "outdir": outdir, "clip": opts["clip"], "ocio": COLORS[opts["color"]][2]}
-        if opts["wait"]:
-            res = subprocess.run(args, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            if res.returncode != 0:
-                _message("REDline failed (exit %d). Command:\n%s" % (res.returncode, " ".join(args)), error=True)
-                return
-            if create_read(job) is None:
-                _message("REDline finished but no EXR was found in " + outdir, error=True)
-            return
-        # Background: REDline's own console shows the progress.
-        proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
-        _RUNNING[outdir] = proc
-        cfg = _load()
-        cfg.setdefault("pending", [])
-        cfg["pending"] = [j for j in cfg["pending"] if j["outdir"] != outdir] + [job]
-        _save(cfg)
-        if _schedule_poll():
-            _message("Conversion started (see the REDline window).\n"
-                     "The Read is created automatically when it is finished.")
-        else:
-            _message("Conversion started (see the REDline window).\n"
-                     "When it is finished: R3D > Create Reads (finished conversions).")
+        if clip:
+            start_conversion(clip)
     except Exception:
         _message("R3D import failed:\n" + traceback.format_exc(), error=True)
+
+
+# ----------------------------------------------------------------------------- Read hook
+
+_READ_REQUESTS = []
+
+
+def _first_segment(path):
+    """A spanned clip picked as a sequence (A001_C002_..._###.R3D): its first file."""
+    if "#" not in path and "%" not in path:
+        return path
+    import glob
+    pat = re.sub(r"#+", lambda m: "[0-9]" * len(m.group(0)), path)
+    pat = re.sub(r"%0?(\d*)d", lambda m: "[0-9]" * int(m.group(1) or 1), pat)
+    files = sorted(glob.glob(pat))
+    return files[0] if files else path
+
+
+def _norm(p):
+    return os.path.normcase(os.path.normpath(p)) if p else ""
+
+
+def r3d_on_read(path):
+    """Called by Natron's Read when its file is a .R3D (Engine/ReadNode.cpp).
+    Runs from inside the Read's parameter change: defer the dialog."""
+    _READ_REQUESTS.append(path)
+    try:
+        import NatronGui
+        if hasattr(NatronGui.natron, "callLater"):
+            NatronGui.natron.callLater(0, "r3d_process_reads")
+            return
+    except Exception:
+        pass
+    r3d_process_reads()
+
+
+def r3d_process_reads():
+    try:
+        app = _app()
+        while _READ_REQUESTS:
+            path = _READ_REQUESTS.pop(0)
+            reads = []
+            for node in app.getChildren():
+                try:
+                    if node.getPluginID() != "fr.inria.built-in.Read":
+                        continue
+                    p = node.getParam("filename")
+                    if p is not None and _norm(p.getValue()) == _norm(path):
+                        reads.append(node.getScriptName())
+                except Exception:
+                    continue
+            clip = _first_segment(path)
+            # Already converted with the default folder: use it without asking.
+            base = os.path.splitext(os.path.basename(clip))[0]
+            outdir = os.path.join(os.path.dirname(clip), base + "_EXR")
+            if reads and _sequence_pattern(outdir, base):
+                _finish_job({"name": base, "outdir": outdir, "clip": clip, "reads": reads})
+                continue
+            if any(_norm(j["clip"]) == _norm(clip) and j["outdir"] in _RUNNING for j in _load().get("pending", [])):
+                continue   # this clip is already converting
+            start_conversion(clip, reads)
+    except Exception:
+        _message("R3D Read failed:\n" + traceback.format_exc(), error=True)
 
 
 def r3d_import():
@@ -470,6 +574,8 @@ def _r3d_register():
     __main__.r3d_create_reads = r3d_create_reads
     __main__.r3d_set_redline = r3d_set_redline
     __main__.r3d_poll = r3d_poll
+    __main__.r3d_on_read = r3d_on_read
+    __main__.r3d_process_reads = r3d_process_reads
     if getattr(NatronGui, "_r3d_menu_done", False):
         return
     NatronGui.natron.addMenuCommand("R3D/Import R3D (REDline)...", "r3d_import")

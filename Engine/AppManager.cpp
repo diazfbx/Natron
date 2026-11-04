@@ -54,6 +54,7 @@
 #include <stdexcept>
 #include <cstring> // for std::memcpy
 #include <sstream> // stringstream
+#include <algorithm> // std::find (r3d reader format)
 #include <locale>
 
 #include <QtGlobal> // for Q_OS_*
@@ -3527,6 +3528,11 @@ AppManager::getSupportedReaderFileFormats(std::vector<std::string>* formats) con
     int i = 0;
     for (IOPluginsMap::const_iterator it = readersForFormat.begin(); it != readersForFormat.end(); ++it, ++i) {
         (*formats)[i] = it->first;
+    }
+    // RED .R3D: no decoder, but the Read accepts it (converted to EXR through
+    // REDline by the R3D_Import PyPlug), so file dialogs and drag & drop show it.
+    if ( std::find(formats->begin(), formats->end(), std::string("r3d")) == formats->end() ) {
+        formats->push_back("r3d");
     }
 }
 

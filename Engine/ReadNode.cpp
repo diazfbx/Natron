@@ -230,6 +230,7 @@ public:
     NodePtr embeddedPlugin;
     std::list<KnobSerializationPtr> genericKnobsSerialization;
     KnobFileWPtr inputFileKnob;
+    bool r3dMessageShown = false;   // R3D placeholder message to clear once the EXR arrive
 
     //Thiese are knobs owned by the ReadNode and not the Reader
     KnobChoiceWPtr pluginSelectorKnob;
@@ -663,6 +664,43 @@ ReadNodePrivate::createReadNode(bool throwErrors,
     SetCreatingReaderRAIIFlag creatingNode__(this);
     QString qpattern = QString::fromUtf8( filename.c_str() );
     std::string ext = QtCompat::removeFileExtension(qpattern).toLower().toStdString();
+
+    // RED .R3D: no decoder (closed format). The R3D_Import PyPlug converts the
+    // clip with RED's REDline tool and then sets this Read's filename to the
+    // EXR sequence. Here: hand the file to its Python hook (if installed) and
+    // keep a placeholder reader meanwhile, without raising "no decoder".
+    if (ext == "r3d") {
+        throwErrors = false;
+        std::string path = filename;
+        std::string escaped;
+        for (size_t i = 0; i < path.size(); ++i) {
+            if (path[i] == '\\') {
+                escaped += '/';
+            } else if (path[i] == '\'') {
+                escaped += "\\'";
+            } else {
+                escaped += path[i];
+            }
+        }
+        const std::string script =
+            "import __main__\n"
+            "if not hasattr(__main__, 'r3d_on_read'):\n"
+            "    raise RuntimeError('R3D_Import PyPlug not loaded')\n"
+            "__main__.r3d_on_read('" + escaped + "')\n";
+        std::string err;
+        if ( !NATRON_PYTHON_NAMESPACE::interpretPythonScript(script, &err, NULL) || !err.empty() ) {
+            _publicInterface->setPersistentMessage( eMessageTypeError,
+                tr("R3D: the R3D_Import PyPlug (REDline) is needed to read .R3D files. %1")
+                .arg( QString::fromUtf8( err.c_str() ) ).toStdString() );
+        } else {
+            _publicInterface->setPersistentMessage( eMessageTypeWarning,
+                tr("R3D: converting to EXR with REDline, the Read switches to the EXR sequence when it is done.").toStdString() );
+        }
+        r3dMessageShown = true;
+    } else if (r3dMessageShown) {
+        _publicInterface->clearPersistentMessage(false);   // the EXR sequence replaced the .R3D
+        r3dMessageShown = false;
+    }
     std::string readerPluginID;
     KnobStringPtr pluginIDKnob = pluginIDStringKnob.lock();
     readerPluginID = pluginIDKnob->getValue();
