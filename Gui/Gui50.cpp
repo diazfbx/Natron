@@ -2064,6 +2064,22 @@ Gui::templatesDirectory()
 }
 
 void
+Gui::importR3DClip()
+{
+    const std::string script =
+        "import __main__\n"
+        "if not hasattr(__main__, 'r3d_import'):\n"
+        "    raise RuntimeError('R3D_Import PyPlug not loaded')\n"
+        "__main__.r3d_import()\n";
+    std::string err;
+    if ( !NATRON_PYTHON_NAMESPACE::interpretPythonScript(script, &err, NULL) || !err.empty() ) {
+        Dialogs::errorDialog( tr("Import R3D").toStdString(),
+                              tr("The R3D import needs the R3D_Import PyPlug (Plugins/PyPlugs/R3D_Import).\n%1")
+                              .arg( QString::fromUtf8( err.c_str() ) ).toStdString() );
+    }
+}
+
+void
 Gui::createTemplateFromFile()
 {
     QAction* a = qobject_cast<QAction*>( sender() );

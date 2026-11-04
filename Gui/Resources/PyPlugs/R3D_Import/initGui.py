@@ -9,10 +9,10 @@ a clip to an OpenEXR sequence that Natron reads natively. This PyPlug only
 A Read given a .R3D (file dialog, drag & drop) calls r3d_on_read(): same
 options dialog, then the Read switches to the EXR sequence when REDline is done.
 
-Menu:
-  R3D > Import R3D (REDline)...            convert a clip, then create its Read
-  R3D > Create Reads (finished conversions) Reads for conversions run in the background
-  R3D > Set REDline location...
+Entry points: File > Import R3D (REDline)... (r3d_import), a Read given a
+.R3D (r3d_on_read). The Read is created / switched to the EXR automatically
+when REDline finishes; if REDline is missing or fails to start, its location
+is asked for, or its download page offered.
 
 Settings (REDline path, codes read from `REDline --help`, pending jobs):
 ~/.Natron/r3d_import.json
@@ -457,7 +457,15 @@ def start_conversion(clip, reads=None):
             _message("REDline finished but no EXR was found in " + outdir, error=True)
         return
     # Background: REDline's own console shows the progress.
-    proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+    try:
+        proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+    except OSError:
+        cfg.pop("redline", None)
+        _save(cfg)
+        _message("REDline could not be started (%s)." % redline, error=True)
+        if not _ask_download() and ask_redline(cfg):
+            start_conversion(clip, reads)
+        return
     _RUNNING[outdir] = proc
     cfg = _load()
     cfg.setdefault("pending", [])
@@ -468,7 +476,7 @@ def start_conversion(clip, reads=None):
         _message("Conversion started (see the REDline window).\n" + what + " automatically when it is finished.")
     else:
         _message("Conversion started (see the REDline window).\n"
-                 "When it is finished: R3D > Create Reads (finished conversions).")
+                 "Natron cannot watch it (needs this fork's callLater): load the EXR from " + outdir + " when it is done.")
 
 
 def import_r3d():
@@ -576,12 +584,8 @@ def _r3d_register():
     __main__.r3d_poll = r3d_poll
     __main__.r3d_on_read = r3d_on_read
     __main__.r3d_process_reads = r3d_process_reads
-    if getattr(NatronGui, "_r3d_menu_done", False):
-        return
-    NatronGui.natron.addMenuCommand("R3D/Import R3D (REDline)...", "r3d_import")
-    NatronGui.natron.addMenuCommand("R3D/Create Reads (finished conversions)", "r3d_create_reads")
-    NatronGui.natron.addMenuCommand("R3D/Set REDline location...", "r3d_set_redline")
-    NatronGui._r3d_menu_done = True
+    # No menu of its own: File > Import R3D (REDline)... (Gui.cpp) calls
+    # r3d_import(); a Read given a .R3D calls r3d_on_read().
 
 
 try:

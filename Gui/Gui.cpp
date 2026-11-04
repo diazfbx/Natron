@@ -657,6 +657,16 @@ Gui::createMenuActions()
     _imp->menuFile->addAction(_imp->actionSaveAndIncrementVersion);
     _imp->menuFile->addAction(_imp->actionExportAsGroup);
     _imp->menuFile->addSeparator();
+    {
+        // RED clips: converted to EXR by RED's REDline through the R3D_Import PyPlug,
+        // which then creates the Read (asks for REDline / offers its download if missing).
+        QAction* importR3D = new QAction(tr("Import R3D (REDline)..."), this);
+        importR3D->setStatusTip( tr("Convert a RED .R3D clip to an OpenEXR sequence with REDline "
+                                    "(REDCINE-X PRO) and create its Read when done") );
+        QObject::connect( importR3D, SIGNAL(triggered()), this, SLOT(importR3DClip()) );
+        _imp->menuFile->addAction(importR3D);
+    }
+    _imp->menuFile->addSeparator();
     _imp->menuFile->addAction(_imp->actionExit);
 
     _imp->menuEdit->addAction(_imp->actionPreferences);

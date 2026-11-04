@@ -600,6 +600,8 @@ public Q_SLOTS:
     void createTemplateHDRIBasic();
     // Templates saved as .ntp scenes under <Natron>/Resources/Templates (action data = relative path).
     void createTemplateFromFile();
+    // File > Import R3D (REDline): runs the R3D_Import PyPlug's r3d_import().
+    void importR3DClip();
     void createTemplateMegascansAsset();
 
     void autoSave();
