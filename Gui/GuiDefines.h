@@ -39,8 +39,9 @@
 #define NATRON_TOOL_BUTTON_BORDER 6 // a bit more than NATRON_BUTTON_BORDER
 #define NATRON_TOOL_BUTTON_SIZE (NATRON_TOOL_BUTTON_ICON_SIZE + NATRON_TOOL_BUTTON_BORDER)
 
-#define NATRON_PREVIEW_WIDTH 64
-#define NATRON_PREVIEW_HEIGHT 38
+// Postage stamp render size (the image is then scaled to the node's full width).
+#define NATRON_PREVIEW_WIDTH 160
+#define NATRON_PREVIEW_HEIGHT 90
 
 #define NODE_WIDTH 100
 #define NODE_HEIGHT 30

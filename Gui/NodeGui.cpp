@@ -571,9 +571,12 @@ void
 NodeGui::getSizeWithPreview(int *w,
                             int *h) const
 {
+    // Postage stamp across the whole node width (minus the plugin icon and a
+    // small margin); the node keeps its normal width and grows in height.
     getInitialSize(w, h);
-    *w = *w -  (TO_DPIX(NODE_WIDTH) / 2.) + TO_DPIX(NATRON_PREVIEW_WIDTH);
-    *h = *h + TO_DPIY(NATRON_PREVIEW_HEIGHT) + 10;
+    const double availW = std::max( 1., (double)*w - getPluginIconWidth() - 2. * TO_DPIX(4) );
+    const double dispH = availW * NATRON_PREVIEW_HEIGHT / (double)NATRON_PREVIEW_WIDTH;
+    *h = *h + (int)std::ceil(dispH) + 10;
 }
 
 double
@@ -814,6 +817,7 @@ NodeGui::ensurePreviewCreated()
         //as there are in the image
         _previewPixmap->setTransform(QTransform::fromScale( appPTR->getLogicalDPIXRATIO(), appPTR->getLogicalDPIYRATIO() ), true);
         _previewPixmap->setPixmap(prev_pixmap);
+        _previewPixmap->setTransformationMode(Qt::SmoothTransformation);   // scaled to the node width
         _previewPixmap->setZValue(getBaseDepth() + 1);
     }
     QSize size = getSize();
@@ -963,13 +967,25 @@ NodeGui::refreshPreviewAndLabelPosition(const QRectF& bbox)
         prevW = 0;
         prevH = 0;
     }
-    const double textPlusPixHeight = std::min( (double)prevH + 5. + labelHeight, bbox.height() - 5 );
     const int iconWidth = getPluginIconWidth();
+
+    // Scale the postage stamp to the node's width (keeping the image aspect,
+    // within the NATRON_PREVIEW_WIDTH x HEIGHT frame).
+    double dispW = prevW, dispH = prevH;
+    if ( _previewPixmap && _previewPixmap->isVisible() && prevW > 0 && prevH > 0 ) {
+        const double availW = std::max( 1., bbox.width() - iconWidth - 2. * TO_DPIX(4) );
+        const double availH = availW * NATRON_PREVIEW_HEIGHT / (double)NATRON_PREVIEW_WIDTH;
+        const double s = std::min( availW / prevW, availH / prevH );
+        _previewPixmap->setTransform( QTransform::fromScale(s, s) );
+        dispW = prevW * s;
+        dispH = prevH * s;
+    }
+    const double textPlusPixHeight = std::min( dispH + 5. + labelHeight, bbox.height() - 5 );
 
     if (_previewPixmap) {
         double pixX = bbox.x() + iconWidth;
-        double remainingSpace = bbox.width() - pixX;
-        pixX = pixX + remainingSpace / 2. - prevW / 2.;
+        double remainingSpace = bbox.width() - iconWidth;
+        pixX = pixX + remainingSpace / 2. - dispW / 2.;
         double pixY = bbox.y() + bbox.height() / 2 - textPlusPixHeight / 2;
         _previewPixmap->setPos(pixX, pixY);
     }
@@ -989,7 +1005,7 @@ NodeGui::refreshPreviewAndLabelPosition(const QRectF& bbox)
             textY = bbox.y() + frameHeight / 2 -  labelHeight / 2;
         } else {
             if ( _previewPixmap && _previewPixmap->isVisible() ) {
-                textY = bbox.y() + height / 2 - textPlusPixHeight / 2 + prevH;
+                textY = bbox.y() + height / 2 - textPlusPixHeight / 2 + dispH + 5.;
             } else {
                 textY = bbox.y() + height / 2 - labelHeight / 2;
             }
