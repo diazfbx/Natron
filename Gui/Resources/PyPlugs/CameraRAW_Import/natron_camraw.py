@@ -582,7 +582,7 @@ def camraw_poll():
                 continue
             _RUNNING.pop(job["outdir"], None)
             if rc != 0:
-                _message("%s failed on %s (exit code %d): no Read created." % (job["tool"], job["name"], rc), error=True)
+                _message(_failure_text(job, rc), error=True)
             elif not _finish_job(job):
                 _message("%s finished %s but no EXR was found in %s." % (job["tool"], job["name"], job["outdir"]), error=True)
             else:
@@ -595,35 +595,67 @@ def camraw_poll():
         _log("poll failed\n" + traceback.format_exc())
 
 
+def _tail(path, n=12):
+    try:
+        with open(path, "r", errors="replace") as fh:
+            lines = [l.rstrip() for l in fh.readlines() if l.strip()]
+        return "\n".join(lines[-n:])
+    except Exception:
+        return ""
+
+
+def _failure_text(job, rc):
+    code = rc & 0xFFFFFFFF
+    text = "%s failed on %s (exit code %d / 0x%08X): no Read created." % (job["tool"], job["name"], rc, code)
+    t = _tail(job.get("log", ""))
+    if t:
+        text += "\n\n%s output (%s):\n%s" % (job["tool"], job["log"], t)
+    return text
+
+
 def _run(fmt, args, job, wait):
+    """Run the converter; its output goes to <outdir>/<tool>.log (shown on failure)."""
     _log(_quote(args))
     os.makedirs(job["outdir"], exist_ok=True)
+    job["log"] = os.path.join(job["outdir"], fmt["tool"] + ".log")
+    try:
+        logf = open(job["log"], "w")
+        logf.write(_quote(args) + "\n\n")
+        logf.flush()
+    except OSError:
+        logf = None
     if wait:
-        res = subprocess.run(args, creationflags=_NO_WINDOW)
+        res = subprocess.run(args, stdout=logf, stderr=subprocess.STDOUT, creationflags=_NO_WINDOW)
+        if logf:
+            logf.close()
         if res.returncode != 0:
-            _message("%s failed (exit %d). Command:\n%s" % (fmt["tool"], res.returncode, _quote(args)), error=True)
+            _message(_failure_text(job, res.returncode), error=True)
         elif not _finish_job(job):
             _message("%s finished but no EXR was found in %s" % (fmt["tool"], job["outdir"]), error=True)
         return
     try:
-        proc = subprocess.Popen(args, creationflags=_NEW_CONSOLE)
+        proc = subprocess.Popen(args, stdout=logf, stderr=subprocess.STDOUT, creationflags=_NO_WINDOW)
     except OSError:
+        if logf:
+            logf.close()
         cfg = _load()
         cfg.get(fmt["key"], {}).pop("tool", None)
         _save(cfg)
         _message("%s could not be started (%s)." % (fmt["tool"], args[0]), error=True)
         return
+    if logf:
+        logf.close()   # the child keeps its own handle
     _RUNNING[job["outdir"]] = proc
     cfg = _load()
     cfg["pending"] = [j for j in cfg.get("pending", []) if j["outdir"] != job["outdir"]] + [job]
     _save(cfg)
     what = "The Read switches to the EXR sequence" if job.get("reads") else "The Read is created"
     if _schedule_poll():
-        _message("Conversion started (see the %s window).\n%s automatically when it is finished."
-                 % (fmt["tool"], what))
+        _message("Conversion started in the background (log: %s).\n%s automatically when it is finished."
+                 % (job["log"], what))
     else:
-        _message("Conversion started (see the %s window).\nLoad the EXR from %s when it is done."
-                 % (fmt["tool"], job["outdir"]))
+        _message("Conversion started in the background (log: %s).\nLoad the EXR from %s when it is done."
+                 % (job["log"], job["outdir"]))
 
 
 def start_conversion(clip, reads=None):

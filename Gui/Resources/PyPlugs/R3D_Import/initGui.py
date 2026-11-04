@@ -175,36 +175,81 @@ def ask_redline(cfg):
     return None
 
 
+PROBE_VERSION = 2   # bump to discard codes cached by an older probe
+
+
+def _option_block(text, option):
+    """Help text of one option: from '--res' up to the next '--option'."""
+    m = re.search(r"(?m)^\s*" + re.escape(option) + r"\b(.*?)(?=^\s*--[A-Za-z]|\Z)", text, re.S)
+    return m.group(1) if m else ""
+
+
 def probe_codes(redline, cfg):
-    """Format / resolution codes from `REDline --help` (they differ between versions)."""
-    if cfg.get("codes", {}).get("_redline") == redline:
-        return cfg["codes"]
+    """Format / resolution codes from `REDline --help`, read only inside the
+    --format and --res blocks (the numbers differ between versions). RED's
+    documented values are the defaults: --format 2 = OpenEXR, --res 1 full,
+    2 half high, 4 quarter, 8 eighth."""
+    cached = cfg.get("codes", {})
+    if cached.get("_redline") == redline and cached.get("_v") == PROBE_VERSION:
+        return cached
     codes = dict(DEFAULT_CODES)
+    text = ""
     try:
         out = subprocess.run([redline, "--help"], capture_output=True, text=True, timeout=30,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         text = (out.stdout or "") + "\n" + (out.stderr or "")
-
-        def code(patterns):
-            for pat in patterns:
-                m = re.search(pat, text, re.I)
-                if m:
-                    return m.group(1)
-            return None
-        c = code([r"(\d+)\s*[=:\-]\s*(?:open\s*)?exr", r"(?:open\s*)?exr\s*[=:\-]\s*(\d+)"])
-        if c:
-            codes["exr"] = c
-        for key, words in (("full", r"full"), ("half", r"half(?:\s*res)?\s*(?:high|premium)"),
-                           ("quarter", r"quarter"), ("eighth", r"eighth")):
-            c = code([r"(\d+)\s*[=:\-]\s*" + words, words + r"\s*[=:\-]\s*(\d+)"])
-            if c:
-                codes[key] = c
     except Exception:
         _log("REDline --help failed, using default codes\n" + traceback.format_exc())
+
+    def code(block, word):
+        for pat in (r"(\d+)\s*[=:\-]\s*" + word, word + r"\s*[=:\-]\s*(\d+)"):
+            m = re.search(pat, block, re.I)
+            if m:
+                return m.group(1)
+        return None
+    fmt = _option_block(text, "--format")
+    c = code(fmt, r"(?:open\s*)?exr")
+    if c:
+        codes["exr"] = c
+    res = _option_block(text, "--res")
+    for key, word in (("full", r"full"), ("half", r"half\s*(?:res\s*)?(?:high|premium)"),
+                      ("quarter", r"quarter"), ("eighth", r"eighth")):
+        c = code(res, word)
+        if c and c != "0":
+            codes[key] = c
     codes["_redline"] = redline
+    codes["_v"] = PROBE_VERSION
     cfg["codes"] = codes
     _save(cfg)
+    _log("REDline codes: " + json.dumps(codes))
     return codes
+
+
+def _cmdline(args):
+    return " ".join('"%s"' % a if " " in a else a for a in args)
+
+
+def _failure_text(name, rc, logpath):
+    """Error text: exit code (crash codes named) + the end of REDline's output."""
+    code = rc & 0xFFFFFFFF
+    known = {0xC0000005: "REDline crashed (access violation)",
+             0xC0000135: "a DLL of REDline is missing",
+             0xC0000409: "REDline crashed (stack buffer overrun)"}
+    text = "REDline failed on %s (exit code %d / 0x%08X%s): no Read created." % (
+        name, rc, code, (", " + known[code]) if code in known else "")
+    tail = ""
+    try:
+        with open(logpath, "r", errors="replace") as fh:
+            lines = [l.rstrip() for l in fh.readlines() if l.strip()]
+        tail = "\n".join(lines[-12:])
+    except Exception:
+        pass
+    if tail:
+        text += "\n\nREDline output (%s):\n%s" % (logpath, tail)
+    if code == 0xC0000005:
+        text += ("\n\nIf it crashes on any clip: update REDCINE-X PRO (KOMODO / V-RAPTOR clips need "
+                 "a recent REDline), or try another decode resolution.")
+    return text
 
 
 def build_args(redline, codes, clip, outdir, name, res_key, color_idx, comp_val,
@@ -304,7 +349,7 @@ def r3d_poll():
                 continue
             _RUNNING.pop(job["outdir"], None)
             if rc != 0:
-                _message("REDline failed on %s (exit code %d): no Read created." % (job["name"], rc), error=True)
+                _message(_failure_text(job["name"], rc, job.get("log")), error=True)
                 continue
             if not _finish_job(job):
                 _message("REDline finished %s but no EXR was found in %s." % (job["name"], job["outdir"]), error=True)
@@ -448,17 +493,28 @@ def start_conversion(clip, reads=None):
     _log(" ".join('"%s"' % a if " " in a else a for a in args))
     job = {"name": name, "outdir": outdir, "clip": opts["clip"], "ocio": COLORS[opts["color"]][2],
            "reads": list(reads or [])}
+    logpath = os.path.join(outdir, "redline.log")
+    job["log"] = logpath
     if opts["wait"]:
-        res = subprocess.run(args, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        with open(logpath, "w") as logf:
+            logf.write(_cmdline(args) + "\n\n")
+            logf.flush()
+            res = subprocess.run(args, stdout=logf, stderr=subprocess.STDOUT,
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if res.returncode != 0:
-            _message("REDline failed (exit %d). Command:\n%s" % (res.returncode, " ".join(args)), error=True)
+            _message(_failure_text(job["name"], res.returncode, logpath), error=True)
             return
         if not _finish_job(job):
             _message("REDline finished but no EXR was found in " + outdir, error=True)
         return
-    # Background: REDline's own console shows the progress.
+    # Background: REDline's output goes to <outdir>/redline.log (shown if it fails).
     try:
-        proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        logf = open(logpath, "w")
+        logf.write(_cmdline(args) + "\n\n")
+        logf.flush()
+        proc = subprocess.Popen(args, stdout=logf, stderr=subprocess.STDOUT,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        logf.close()   # the child keeps its own handle
     except OSError:
         cfg.pop("redline", None)
         _save(cfg)
@@ -473,9 +529,10 @@ def start_conversion(clip, reads=None):
     _save(cfg)
     what = "The Read switches to the EXR sequence" if reads else "The Read is created"
     if _schedule_poll():
-        _message("Conversion started (see the REDline window).\n" + what + " automatically when it is finished.")
+        _message("Conversion started in the background (log: %s).\n%s automatically when it is finished."
+                 % (logpath, what))
     else:
-        _message("Conversion started (see the REDline window).\n"
+        _message("Conversion started in the background (log: %s).\n" % logpath +
                  "Natron cannot watch it (needs this fork's callLater): load the EXR from " + outdir + " when it is done.")
 
 
