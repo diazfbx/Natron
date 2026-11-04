@@ -46,6 +46,18 @@ NATRON_NAMESPACE_USING
 
 NATRON_NAMESPACE_ENTER
 
+/**
+ * @brief Plug-ins kept loadable (old projects, PyPlugs, Python createNode) but
+ * left out of the node menus and the Tab node-creation dialog because a
+ * built-in replaces them: the OFX Shuffle is replaced by the Shuffle node
+ * (fr.inria.built-in.DevShuffle, Wire / Classic modes).
+ **/
+inline bool
+isPluginHiddenFromNodeMenus(const QString& pluginID)
+{
+    return pluginID == QLatin1String("net.sf.openfx.ShufflePlugin");
+}
+
 class PluginGroupNode
 {
     QString _id;

@@ -44,6 +44,7 @@
 #include "Engine/CLArgs.h"
 #include "Engine/CreateNodeArgs.h"
 #include "Engine/KnobSerialization.h" // createDefaultValueForParam
+#include "Engine/Plugin.h" // isPluginHiddenFromNodeMenus
 #include "Engine/Lut.h" // Color, floatToInt
 #include "Engine/Node.h"
 #include "Engine/NodeGroup.h" // NodeGroup, NodeCollection, NodesList
@@ -854,6 +855,9 @@ Gui::findOrCreateToolButton(const PluginGroupNodePtr & plugin)
 {
     if ( !plugin->getIsUserCreatable() && plugin->getChildren().empty() ) {
         return 0;
+    }
+    if ( plugin->getChildren().empty() && isPluginHiddenFromNodeMenus( plugin->getID() ) ) {
+        return 0;   // replaced by a built-in (see Plugin.h)
     }
 
     for (U32 i = 0; i < _imp->_toolButtons.size(); ++i) {

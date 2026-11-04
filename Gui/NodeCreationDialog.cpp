@@ -405,7 +405,7 @@ NodeCreationDialog::NodeCreationDialog(const QString& initialFilter,
         if (it->second.size() == 1) {
             std::pair<QString, QString> idNamePair;
             Plugin* p = ( *it->second.begin() );
-            if ( !p->getIsUserCreatable() ) {
+            if ( !p->getIsUserCreatable() || isPluginHiddenFromNodeMenus( p->getPluginID() ) ) {
                 continue;
             }
 
@@ -426,7 +426,7 @@ NodeCreationDialog::NodeCreationDialog(const QString& initialFilter,
         } else {
             QString bestMajorName;
             for (PluginVersionsOrdered::reverse_iterator it2 = it->second.rbegin(); it2 != it->second.rend(); ++it2) {
-                if ( !(*it2)->getIsUserCreatable() ) {
+                if ( !(*it2)->getIsUserCreatable() || isPluginHiddenFromNodeMenus( (*it2)->getPluginID() ) ) {
                     continue;
                 }
                 std::pair<QString, QString> idNamePair;

@@ -26,6 +26,7 @@
 #include <cassert>
 #include <cstring>
 #include <algorithm>
+#include <cctype>
 
 #include <QTimer>
 
@@ -64,6 +65,15 @@ struct DevShufflePrivate
     KnobIntWPtr outputG2;
     KnobIntWPtr outputB2;
     KnobIntWPtr outputA2;
+
+    // Wire (noodle widget) / Classic (one drop-down per output channel)
+    KnobChoiceWPtr uiMode;
+    // Classic mode: Red/Green/Blue/Alpha drop-downs. UI proxies only (not
+    // saved): the routing lives in outputR/G/B/A. classicValues[i] is the
+    // routing value of drop-down entry i.
+    KnobChoiceWPtr classic[4];
+    std::vector<int> classicValues;
+    bool syncingClassic = false;
 
     // Cache of discovered layers for input B (row 1)
     std::vector<ImagePlaneDesc> cachedLayers;
@@ -104,7 +114,13 @@ DevShuffle::~DevShuffle()
 std::string
 DevShuffle::getPluginDescription() const
 {
-    return tr("Two-row layer-aware channel shuffle.\n\n"
+    return tr("Shuffle: route channels between layers, as in Nuke.\n\n"
+              "Mode Wire: drag cables from the input channels (B and A) to the "
+              "output channels; the 0 / 1 buttons fill a channel with black / white.\n"
+              "Mode Classic: one drop-down per output channel (Red, Green, Blue, "
+              "Alpha) choosing a channel of B or A, 0 or 1, like the former Shuffle.\n"
+              "Both modes edit the same routing.\n\n"
+              "Two-row layer-aware channel shuffle.\n\n"
               "Row 1 routes channels from input B (primary).\n"
               "Row 2 routes channels from input A (secondary).\n\n"
               "Row 2 routing overrides row 1 for the same output channel.\n"
@@ -200,6 +216,23 @@ DevShuffle::initializeKnobs()
 {
     KnobPagePtr mainPage = AppManager::createKnob<KnobPage>(this, tr("Shuffle"));
 
+    // UI mode. Wire = noodle widget (default); Classic = drop-down per channel.
+    {
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Mode"));
+        k->setName("shuffleMode");
+        std::vector<ChoiceOption> entries;
+        entries.push_back(ChoiceOption("wire", "Wire", tr("Connect channels with cables (Nuke Shuffle).").toStdString()));
+        entries.push_back(ChoiceOption("classic", "Classic", tr("One drop-down per output channel (former Shuffle).").toStdString()));
+        k->populateChoices(entries);
+        k->setDefaultValue(0);
+        k->setAnimationEnabled(false);
+        k->setHintToolTip(tr("Wire: drag cables between input and output channels.\n"
+                              "Classic: pick the source of each output channel in a drop-down.\n"
+                              "Both edit the same routing; switch at any time."));
+        mainPage->addKnob(k);
+        _imp->uiMode = k;
+    }
+
     // Input source (hidden -- per-row input selection is in the widget)
     {
         KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Input"));
@@ -216,8 +249,9 @@ DevShuffle::initializeKnobs()
 
     // ---- Row 1 knobs (B input) ----
     {
-        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Input Layer"));
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("B Layer"));
         k->setName("inputLayer");
+        k->setAnimationEnabled(false);
         std::vector<ChoiceOption> entries;
         entries.push_back(ChoiceOption("Color.RGBA", "Color.RGBA", "RGBA color channels"));
         k->populateChoices(entries);
@@ -277,8 +311,9 @@ DevShuffle::initializeKnobs()
 
     // ---- Row 2 knobs (A input) ----
     {
-        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("Input Layer 2"));
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("A Layer"));
         k->setName("inputLayer2");
+        k->setAnimationEnabled(false);
         std::vector<ChoiceOption> entries;
         entries.push_back(ChoiceOption("Color.RGBA", "Color.RGBA", "RGBA color channels"));
         k->populateChoices(entries);
@@ -354,6 +389,116 @@ DevShuffle::initializeKnobs()
         k->setSecret(true);
         mainPage->addKnob(k);
     }
+
+    // Classic mode: one drop-down per output channel (hidden in Wire mode).
+    {
+        static const char* names[4]  = { "classicR", "classicG", "classicB", "classicA" };
+        static const char* labels[4] = { "Red", "Green", "Blue", "Alpha" };
+        for (int c = 0; c < 4; ++c) {
+            KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr(labels[c]));
+            k->setName(names[c]);
+            k->setAnimationEnabled(false);
+            k->setIsPersistent(false); // proxy of outputR/G/B/A
+            k->setHintToolTip(tr("Source of this output channel: a channel of B or A, "
+                                  "0 (black) or 1 (white)."));
+            k->setSecret(true);
+            mainPage->addKnob(k);
+            _imp->classic[c] = k;
+        }
+    }
+    refreshClassicChoices();
+    refreshModeVisibility();
+}
+
+// ==================== Wire / Classic modes ====================
+
+void
+DevShuffle::refreshModeVisibility()
+{
+    const bool classic = _imp->uiMode.lock() && _imp->uiMode.lock()->getValue() == 1;
+    if (KnobIPtr k = getKnobByName("shuffleRouting")) k->setSecret(classic);
+    if (KnobChoicePtr k = _imp->inputLayer.lock())  k->setSecret(!classic);
+    if (KnobChoicePtr k = _imp->outputLayer.lock()) k->setSecret(!classic);
+    if (KnobChoicePtr k = _imp->inputLayer2.lock()) k->setSecret(!classic);
+    for (int c = 0; c < 4; ++c) {
+        if (KnobChoicePtr k = _imp->classic[c].lock()) k->setSecret(!classic);
+    }
+}
+
+static void
+appendClassicEntries(const char* input, int base, int layerIdx,
+                     const std::vector<ImagePlaneDesc>& layers, bool fallbackRgba,
+                     std::vector<ChoiceOption>* opts, std::vector<int>* vals)
+{
+    std::vector<std::string> chans;
+    std::string layerLabel;
+    bool color = true;
+    if (layerIdx >= 0 && layerIdx < (int)layers.size()) {
+        chans = layers[layerIdx].getChannels();
+        color = layers[layerIdx].isColorPlane();
+        layerLabel = layers[layerIdx].getPlaneLabel();
+        if (layerLabel.empty()) layerLabel = layers[layerIdx].getPlaneID();
+    } else if (fallbackRgba) {
+        chans.push_back("R"); chans.push_back("G"); chans.push_back("B"); chans.push_back("A");
+    }
+    for (size_t c = 0; c < chans.size() && c < 100; ++c) {
+        std::string ch = chans[c];
+        std::string name = std::string(input) + ".";
+        if (color) {
+            std::transform(ch.begin(), ch.end(), ch.begin(), ::tolower);   // B.r, B.g ...
+            name += ch;
+        } else {
+            name += layerLabel + "." + ch;                                // B.depth.Z ...
+        }
+        opts->push_back(ChoiceOption(name, name, ""));
+        vals->push_back(base + (int)c);
+    }
+}
+
+void
+DevShuffle::refreshClassicChoices()
+{
+    if (_imp->syncingClassic) return;
+    _imp->syncingClassic = true;
+
+    std::vector<ChoiceOption> opts;
+    std::vector<int> vals;
+    const int bIdx = _imp->inputLayer.lock()  ? _imp->inputLayer.lock()->getValue()  : -1;
+    const int aIdx = _imp->inputLayer2.lock() ? _imp->inputLayer2.lock()->getValue() : -1;
+    appendClassicEntries("B", 0,   bIdx, _imp->cachedLayers,  true,  &opts, &vals);
+    appendClassicEntries("A", 100, aIdx, _imp->cachedLayers2, getInput(1) != NULL, &opts, &vals);
+    opts.push_back(ChoiceOption("0", "0", "Black")); vals.push_back(-2);
+    opts.push_back(ChoiceOption("1", "1", "White")); vals.push_back(-3);
+    _imp->classicValues = vals;
+
+    KnobIntPtr ints[4] = { _imp->outputR.lock(), _imp->outputG.lock(), _imp->outputB.lock(), _imp->outputA.lock() };
+    for (int c = 0; c < 4; ++c) {
+        KnobChoicePtr k = _imp->classic[c].lock();
+        if (!k) continue;
+        k->populateChoices(opts);
+        int v = ints[c] ? ints[c]->getValue() : -2;
+        if (v == -1) v = -2;   // disconnected renders black: show "0"
+        int idx = (int)(std::find(vals.begin(), vals.end(), v) - vals.begin());
+        if (idx >= (int)vals.size()) idx = (int)vals.size() - 2;  // channel not in this layer: "0"
+        if (k->getValue() != idx) k->setValue(idx);
+    }
+    _imp->syncingClassic = false;
+}
+
+void
+DevShuffle::pushRoutingToWidget()
+{
+    KnobIPtr shuffleKnob = getKnobByName("shuffleRouting");
+    KnobStringBase* strKnob = shuffleKnob ? dynamic_cast<KnobStringBase*>(shuffleKnob.get()) : NULL;
+    if (!strKnob) return;
+    KnobIntPtr ints[4] = { _imp->outputR.lock(), _imp->outputG.lock(), _imp->outputB.lock(), _imp->outputA.lock() };
+    std::string routingStr;
+    for (int c = 0; c < 4; ++c) {
+        if (c > 0) routingStr += ",";
+        routingStr += std::to_string(ints[c] ? ints[c]->getValue() : -1);
+    }
+    strKnob->setValue("_refresh");   // the widget re-reads the ints on every change
+    strKnob->setValue(routingStr);
 }
 
 // ==================== Dynamic layer discovery ====================
@@ -436,6 +581,7 @@ void
 DevShuffle::refreshLayerChoices()
 {
     discoverLayers(this, 0, _imp->cachedLayers, _imp->inputLayer, _imp->outputLayer);
+    refreshClassicChoices();
 
     // Trigger visual widget refresh
     KnobIPtr shuffleKnob = getKnobByName("shuffleRouting");
@@ -452,6 +598,7 @@ void
 DevShuffle::refreshLayerChoices2()
 {
     discoverLayers(this, 1, _imp->cachedLayers2, _imp->inputLayer2, _imp->outputLayer2);
+    refreshClassicChoices();
 
     // Trigger visual widget refresh
     KnobIPtr shuffleKnob = getKnobByName("shuffleRouting");
@@ -473,6 +620,59 @@ DevShuffle::knobChanged(KnobI* k, ValueChangedReasonEnum /*reason*/, ViewSpec /*
     KnobChoicePtr inputSourceKnob = _imp->inputSource.lock();
     KnobChoicePtr inputLayerKnob = _imp->inputLayer.lock();
     KnobChoicePtr inputLayer2Knob = _imp->inputLayer2.lock();
+
+    if (!k) return false;
+
+    // Wire / Classic switch
+    if (_imp->uiMode.lock() && k == _imp->uiMode.lock().get()) {
+        refreshClassicChoices();
+        refreshModeVisibility();
+        return false;
+    }
+
+    // Classic drop-down edited -> write the routing int, refresh the wires
+    for (int c = 0; c < 4; ++c) {
+        KnobChoicePtr ck = _imp->classic[c].lock();
+        if (!ck || k != ck.get()) continue;
+        if (_imp->syncingClassic) return false;
+        const int idx = ck->getValue();
+        if (idx < 0 || idx >= (int)_imp->classicValues.size()) return false;
+        _imp->syncingClassic = true;
+        KnobIntPtr ints[4]  = { _imp->outputR.lock(),  _imp->outputG.lock(),  _imp->outputB.lock(),  _imp->outputA.lock() };
+        KnobIntPtr ints2[4] = { _imp->outputR2.lock(), _imp->outputG2.lock(), _imp->outputB2.lock(), _imp->outputA2.lock() };
+        if (ints[c]) ints[c]->setValue(_imp->classicValues[idx]);
+        // Classic drives row 1 only: a row-2 wire on the same plane would override it.
+        const bool samePlane = resolveOutputPlane(_imp->outputLayer, _imp->cachedLayers).getPlaneID()
+                            == resolveOutputPlane(_imp->outputLayer2, _imp->cachedLayers2).getPlaneID();
+        if (samePlane && ints2[c] && ints2[c]->getValue() != -1) {
+            ints2[c]->setValue(-1);
+            if (KnobIPtr r2 = getKnobByName("shuffleRouting2")) {
+                if (KnobStringBase* s2 = dynamic_cast<KnobStringBase*>(r2.get())) {
+                    s2->setValue("_refresh2");
+                    std::string str;
+                    for (int i = 0; i < 4; ++i) {
+                        if (i > 0) str += ",";
+                        str += std::to_string(ints2[i] ? ints2[i]->getValue() : -1);
+                    }
+                    s2->setValue(str);
+                }
+            }
+        }
+        _imp->syncingClassic = false;
+        pushRoutingToWidget();
+        return true;
+    }
+
+    // Routing changed elsewhere (wires, layer change, script): follow in Classic
+    {
+        KnobIntPtr ints[4] = { _imp->outputR.lock(), _imp->outputG.lock(), _imp->outputB.lock(), _imp->outputA.lock() };
+        for (int c = 0; c < 4; ++c) {
+            if (ints[c] && k == ints[c].get()) {
+                refreshClassicChoices();
+                return false;
+            }
+        }
+    }
 
     if (k == inputSourceKnob.get()) {
         refreshLayerChoices();
@@ -497,6 +697,7 @@ DevShuffle::knobChanged(KnobI* k, ValueChangedReasonEnum /*reason*/, ViewSpec /*
             if (ak) ak->setValue(numChan > 3 ? 3 : -1);
         }
 
+        refreshClassicChoices(); // Classic entries follow the layer
         // Trigger visual widget refresh
         KnobIPtr shuffleKnob = getKnobByName("shuffleRouting");
         if (shuffleKnob) {
@@ -534,6 +735,7 @@ DevShuffle::knobChanged(KnobI* k, ValueChangedReasonEnum /*reason*/, ViewSpec /*
             if (ak) ak->setValue(numChan > 3 ? 103 : -1);
         }
 
+        refreshClassicChoices(); // Classic entries follow the layer
         // Trigger visual widget refresh
         KnobIPtr shuffleKnob = getKnobByName("shuffleRouting");
         if (shuffleKnob) {
@@ -661,9 +863,11 @@ DevShuffle::onKnobsLoaded()
     // Defer to next event-loop iteration. Inputs may not be wired yet at this
     // synchronous moment; the deferred call picks up user layers + restored
     // routing once the Node is fully constructed.
+    refreshModeVisibility();   // saved Mode (Wire / Classic)
     QTimer::singleShot(0, this, [this]() {
         refreshLayerChoices();
         refreshLayerChoices2();
+        refreshClassicChoices();
     });
 }
 

@@ -71,10 +71,12 @@ public:
     virtual std::string getPluginID() const OVERRIDE FINAL WARN_UNUSED_RETURN
     { return PLUGINID_NATRON_DEVSHUFFLE; }
 
-    // Label renamed DevShuffle -> Shuffle2 (Nuke-style "the modern Shuffle");
-    // the plugin ID stays fr.inria.built-in.DevShuffle so saved projects load.
+    // Label DevShuffle -> Shuffle2 -> Shuffle: this is now THE Shuffle (Wire /
+    // Classic modes); the OFX Shuffle is hidden from the menus but still loads
+    // in old projects and PyPlugs. The plugin ID stays
+    // fr.inria.built-in.DevShuffle so saved projects load.
     virtual std::string getPluginLabel() const OVERRIDE FINAL WARN_UNUSED_RETURN
-    { return "Shuffle2"; }
+    { return "Shuffle"; }
 
     virtual std::string getPluginDescription() const OVERRIDE FINAL WARN_UNUSED_RETURN;
 
@@ -136,6 +138,12 @@ private:
 
     void refreshLayerChoices();
     void refreshLayerChoices2();
+
+    // Wire / Classic UI modes (Classic = Red/Green/Blue/Alpha drop-downs
+    // mirroring outputR/G/B/A).
+    void refreshModeVisibility();
+    void refreshClassicChoices();
+    void pushRoutingToWidget();
 
     // Resolve the output ImagePlaneDesc from an output-layer combo value.
     // First N entries map to cached input layers; entries past that index
