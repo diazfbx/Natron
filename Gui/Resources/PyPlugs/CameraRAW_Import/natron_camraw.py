@@ -335,9 +335,12 @@ def arri_dialog(app, clip, codecs, colors):
             "extra": g("extra"), "wait": g("wait")}
 
 
-def arri_args(tool, opts, codecs, colors):
+def arri_args(tool, opts, codecs, colors, name):
+    # art-cmd's own frame counter template (manual 2.7): [####+1001] = 4 digits
+    # from 1001 - no renaming afterwards. The folder must exist first.
+    out = "%s.[####+%d].exr" % (name, max(0, int(opts["renum"])))
     args = [tool, "process", "--input", _arri_input(opts["clip"]),
-            "--output", os.path.join(opts["outdir"], "%07d.exr").replace("\\", "/"),
+            "--output", os.path.join(opts["outdir"], out).replace("\\", "/"),
             "--target-colorspace", colors[opts["color"]][0],
             "--video-codec", codecs[opts["codec"]][0]]
     if opts["width"] > 0:
@@ -675,10 +678,11 @@ def start_conversion(clip, reads=None):
         if not opts:
             return
         name = _clip_name(opts["clip"])
-        args = arri_args(tool, opts, codecs, colors)
+        os.makedirs(opts["outdir"], exist_ok=True)
+        args = arri_args(tool, opts, codecs, colors, name)
         job = {"fmt": "arri", "tool": fmt["tool"], "name": name, "outdir": opts["outdir"],
                "clip": opts["clip"], "ocio": colors[opts["color"]][2], "reads": reads,
-               "rename": True, "renum": opts["renum"]}
+               "renum": opts["renum"]}
     else:
         info = braw_probe(tool, clip)
         if not info["ok"]:
