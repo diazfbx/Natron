@@ -156,6 +156,8 @@ public:
 
     virtual bool shouldCreateLabel() const;
     virtual bool isLabelOnSameColumn() const;
+    // Nuke-style check boxes: the box first, its label to the right (KnobBool).
+    bool isLabelAfterWidget() const;
     virtual bool isLabelBold() const;
     virtual std::string getDescriptionLabel() const;
     QWidget* getFieldContainer() const;

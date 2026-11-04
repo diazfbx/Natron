@@ -215,7 +215,7 @@ KnobGui::createGUI(QWidget* fieldContainer,
         if (spacing > 0) {
             layout->addSpacing( TO_DPIX(spacing) );
         }
-        if (label) {
+        if ( label && !isLabelAfterWidget() ) {
             if (_imp->warningIndicator) {
                 layout->addWidget(_imp->warningIndicator);
             }
@@ -238,6 +238,14 @@ KnobGui::createGUI(QWidget* fieldContainer,
         createWidget(layout);
         onHasModificationsChanged();
         updateToolTip();
+    }
+
+    // Check boxes: label to the right of the box (Nuke layout), on a new line too.
+    if ( label && isLabelAfterWidget() ) {
+        if (_imp->warningIndicator) {
+            layout->addWidget(_imp->warningIndicator);
+        }
+        layout->addWidget(label);
     }
 
 
@@ -293,6 +301,13 @@ bool
 KnobGui::shouldCreateLabel() const
 {
     return true;
+}
+
+bool
+KnobGui::isLabelAfterWidget() const
+{
+    KnobIPtr knob = getKnob();
+    return knob && dynamic_cast<KnobBool*>( knob.get() ) != 0;
 }
 
 bool

@@ -759,7 +759,9 @@ KnobGuiContainerHelper::findKnobGuiOrCreate(const KnobIPtr & knob,
             QObject::connect( label, SIGNAL(clicked(bool)), ret.get(), SIGNAL(labelClicked(bool)) );
 
 
-            if (makeNewLine) {
+            // Check boxes keep their label next to the box (added by KnobGui::createGUI),
+            // the label column of their row stays empty.
+            if ( makeNewLine && !ret->isLabelAfterWidget() ) {
                 labelLayout->addWidget(warningLabel);
                 labelLayout->addWidget(label);
             }
