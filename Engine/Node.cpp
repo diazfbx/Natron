@@ -1842,7 +1842,7 @@ Node::createNodePage(const KnobPagePtr& settingsPage)
     _imp->forceCaching = fCaching;
     settingsPage->addKnob(fCaching);
 
-    KnobBoolPtr previewEnabled = AppManager::createKnob<KnobBool>(_imp->effect.get(), tr("Preview"), 1, false);
+    KnobBoolPtr previewEnabled = AppManager::createKnob<KnobBool>(_imp->effect.get(), tr("Postage Stamp"), 1, false);
     assert(previewEnabled);
     previewEnabled->setDefaultValue( makePreviewByDefault() );
     previewEnabled->setName(kEnablePreviewKnobName);
@@ -1850,7 +1850,8 @@ Node::createNodePage(const KnobPagePtr& settingsPage)
     previewEnabled->setAddNewLine(false);
     previewEnabled->setIsPersistent(false);
     previewEnabled->setEvaluateOnChange(false);
-    previewEnabled->setHintToolTip( tr("Whether to show a preview on the node box in the node-graph.") );
+    previewEnabled->setHintToolTip( tr("Postage stamp: show a small image of this node's output on its box in the node graph "
+                                       "(saved with the project). Updated when the frame or a parameter changes.") );
     settingsPage->addKnob(previewEnabled);
     _imp->previewEnabledKnob = previewEnabled;
 

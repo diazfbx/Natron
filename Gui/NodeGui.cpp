@@ -1380,7 +1380,10 @@ NodeGui::updatePreviewImage(double time)
 {
     NodePtr node = getNode();
 
-    if ( isVisible() && node && node->isPreviewEnabled() && node->isActivated() && node->getApp()->getProject()->isAutoPreviewEnabled() ) {
+    // A postage stamp the user turned on (the node has none by default) follows
+    // the frame / parameters even with the project's auto-previews off.
+    if ( isVisible() && node && node->isPreviewEnabled() && node->isActivated() &&
+         ( node->getApp()->getProject()->isAutoPreviewEnabled() || !node->makePreviewByDefault() ) ) {
         if ( (node->getScriptName().find(NATRON_FILE_DIALOG_PREVIEW_READER_NAME) != std::string::npos) ||
              ( node->getScriptName().find(NATRON_FILE_DIALOG_PREVIEW_VIEWER_NAME) != std::string::npos) ) {
             return;
