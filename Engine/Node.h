@@ -1121,6 +1121,14 @@ public:
     void setLabel(const std::string& label);
 
     const std::string& getLabel() const;
+
+    /**
+     * @brief Progress of a background job working for this node (camera RAW
+     * conversion...), drawn as a bar on the node in the node graph.
+     * p in [0,1]; p < 0 hides the bar. Main thread.
+     **/
+    void setExternalProgress(double p);
+    double getExternalProgress() const { return _externalProgress; }
     std::string getLabel_mt_safe() const;
     std::string getBeforeRenderCallback() const;
     std::string getBeforeFrameRenderCallback() const;
@@ -1441,6 +1449,8 @@ Q_SIGNALS:
 
     void persistentMessageChanged();
 
+    void externalProgressChanged(double);
+
     void inputsInitialized();
 
     void inputLabelChanged(int, QString);
@@ -1535,6 +1545,7 @@ private:
     void deleteNodeVariableToPython(const std::string& nodeName);
 
     std::unique_ptr<Implementation> _imp;
+    double _externalProgress = -1.;   // setExternalProgress(): < 0 = no bar
 };
 
 /**

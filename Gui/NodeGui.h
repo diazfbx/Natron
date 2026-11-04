@@ -489,6 +489,8 @@ public Q_SLOTS:
 
     void onPersistentMessageChanged();
 
+    void onExternalProgressChanged(double p);
+
     void refreshEdges();
 
     /**
@@ -626,6 +628,10 @@ private:
     int _previewW, _previewH;
     QGraphicsSimpleTextItem* _persistentMessage;
     NodeGraphRectItem* _stateIndicator;
+    // Progress of a background job for this node (Node::setExternalProgress):
+    // thin bar along the bottom of the node, hidden when < 0.
+    QGraphicsRectItem* _progressBg = nullptr;
+    QGraphicsRectItem* _progressFill = nullptr;
     bool _mergeHintActive;
     NodeGuiIndicatorPtr _streamIssuesWarning;
     QGraphicsLineItem* _disabledTopLeftBtmRight;

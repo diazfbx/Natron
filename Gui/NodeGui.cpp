@@ -235,6 +235,7 @@ NodeGui::initialize(NodeGraph* dag,
     QObject::connect( internalNode.get(), SIGNAL(activated(bool)), this, SLOT(activate(bool)) );
     QObject::connect( internalNode.get(), SIGNAL(inputChanged(int)), this, SLOT(connectEdge(int)) );
     QObject::connect( internalNode.get(), SIGNAL(persistentMessageChanged()), this, SLOT(onPersistentMessageChanged()) );
+    QObject::connect( internalNode.get(), SIGNAL(externalProgressChanged(double)), this, SLOT(onExternalProgressChanged(double)) );
     QObject::connect( internalNode.get(), SIGNAL(allKnobsSlaved(bool)), this, SLOT(onAllKnobsSlaved(bool)) );
     QObject::connect( internalNode.get(), SIGNAL(knobsLinksChanged()), this, SLOT(onKnobsLinksChanged()) );
     QObject::connect( internalNode.get(), SIGNAL(outputsChanged()), this, SLOT(refreshOutputEdgeVisibility()) );
@@ -713,6 +714,17 @@ NodeGui::createGui()
     _stateIndicator->setZValue(depth - 1);
     _stateIndicator->hide();
 
+    _progressBg = new QGraphicsRectItem(this);
+    _progressBg->setZValue(depth + 2);
+    _progressBg->setPen(Qt::NoPen);
+    _progressBg->setBrush( QColor(20, 20, 20, 220) );
+    _progressBg->hide();
+    _progressFill = new QGraphicsRectItem(this);
+    _progressFill->setZValue(depth + 3);
+    _progressFill->setPen(Qt::NoPen);
+    _progressFill->setBrush( QColor(240, 160, 40) );   // nuketron orange
+    _progressFill->hide();
+
     QRectF bbox = boundingRect();
     QGradientStops bitDepthGrad;
     bitDepthGrad.push_back( qMakePair( 0., QColor(Qt::white) ) );
@@ -1102,8 +1114,31 @@ NodeGui::resize(int width,
 
     resizeExtraContent(width, height, forceSize);
 
+    onExternalProgressChanged( getNode() ? getNode()->getExternalProgress() : -1. );
+
     refreshPosition( pos().x(), pos().y(), true );
 } // NodeGui::resize
+
+void
+NodeGui::onExternalProgressChanged(double p)
+{
+    if (!_progressBg || !_progressFill || !_boundingBox) {
+        return;
+    }
+    if (p < 0.) {
+        _progressBg->hide();
+        _progressFill->hide();
+        return;
+    }
+    const QRectF bbox = _boundingBox->rect();
+    const double h = std::max( 3., (double)TO_DPIY(5) );
+    const QRectF bar(bbox.left(), bbox.bottom() - h, bbox.width(), h);
+    _progressBg->setRect(bar);
+    _progressFill->setRect( bar.left(), bar.top(), bar.width() * std::min(1., p), bar.height() );
+    _progressBg->show();
+    _progressFill->show();
+    update();
+}
 
 void
 NodeGui::refreshPositionEnd(double x,

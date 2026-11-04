@@ -362,6 +362,13 @@ public:
     void setColor(double r, double g, double b);
 
     /**
+     * @brief Progress bar drawn on the node in the node graph, for a job run
+     * for this node (e.g. a camera RAW conversion). p in [0,1], < 0 hides it.
+     **/
+    void setProgress(double p);
+    double getProgress() const;
+
+    /**
      * @brief Returns true if the node is selected in the nodegraph
      **/
     bool isNodeSelected() const;

@@ -285,6 +285,66 @@ def _sequence_pattern(outdir, name):
     return None
 
 
+# ----------------------------------------------------------------------------- progress on the Read
+
+def clip_frame_count(redline, clip):
+    """Frames in the clip, from `REDline --printMeta 1` (None if not found)."""
+    try:
+        out = subprocess.run([redline, "--i", clip, "--printMeta", "1"], capture_output=True, text=True,
+                             timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        text = (out.stdout or "") + "\n" + (out.stderr or "")
+        m = re.search(r"(?:total\s*frames|frame\s*count|number\s*of\s*frames)\D{0,20}(\d+)", text, re.I)
+        if m and int(m.group(1)) > 0:
+            return int(m.group(1))
+    except Exception:
+        _log("REDline --printMeta failed\n" + traceback.format_exc())
+    return None
+
+
+def _frames_written(job):
+    if not os.path.isdir(job["outdir"]):
+        return 0
+    rx = re.compile(r"^" + re.escape(job["name"]) + r".*?\d+\.exr$", re.I)
+    return sum(1 for f in os.listdir(job["outdir"]) if rx.match(f))
+
+
+def placeholder_read(name):
+    """The Read is created right away; it shows the conversion progress and
+    gets the EXR sequence when the conversion ends."""
+    node = _app().createNode("fr.inria.built-in.Read")
+    if node is None:
+        return None
+    try:
+        node.setLabel(name + " (converting)")
+    except Exception:
+        pass
+    return node.getScriptName()
+
+
+def _set_read_state(job, progress, label):
+    app = _app()
+    for name in job.get("reads") or []:
+        node = app.getNode(name)
+        if node is None:
+            continue
+        try:
+            if hasattr(node, "setProgress"):     # this fork: bar drawn on the node
+                node.setProgress(progress)
+            node.setLabel(label)
+        except Exception:
+            pass
+
+
+def update_progress(job):
+    done = _frames_written(job)
+    total = job.get("total") or 0
+    if total > 0:
+        p = min(0.99, done / float(total))
+        _set_read_state(job, p, "%s  %d%%" % (job["name"], int(p * 100)))
+    else:
+        _set_read_state(job, 0.0, "%s  %d frames" % (job["name"], done))
+
+
 def create_read(job):
     pattern = _sequence_pattern(job["outdir"], job["name"])
     if not pattern:
@@ -346,9 +406,11 @@ def r3d_poll():
             if rc is None:
                 still = True
                 left.append(job)
+                update_progress(job)
                 continue
             _RUNNING.pop(job["outdir"], None)
             if rc != 0 and not _wrote_frames(job):
+                _set_read_state(job, -1, job["name"] + " (conversion failed)")
                 _message(_failure_text(job["name"], rc, job.get("log")), error=True)
                 continue
             if rc != 0:
@@ -356,7 +418,7 @@ def r3d_poll():
             if not _finish_job(job):
                 _message("REDline finished %s but no EXR was found in %s." % (job["name"], job["outdir"]), error=True)
             else:
-                _message("Conversion finished: %s is loaded from its EXR sequence." % job["name"])
+                _log("Conversion finished: %s is loaded from its EXR sequence." % job["name"])
         cfg["pending"] = left
         _save(cfg)
         if still:
@@ -423,8 +485,6 @@ def _dialog(app, clip):
     x.setValue("")
     w = d.createBooleanParam("wait", "Wait for the conversion (Natron is blocked)")
     w.setValue(False)
-    v = d.createBooleanParam("console", "Show the REDline window (progress)")
-    v.setValue(True)
     d.refreshUserParamsGUI()
     ok = d.exec() if hasattr(d, "exec") else d.exec_()
     if not ok:
@@ -441,7 +501,6 @@ def _dialog(app, clip):
         "rmd": d.getParam("rmd").getValue(),
         "extra": d.getParam("extra").getValue(),
         "wait": d.getParam("wait").getValue(),
-        "console": d.getParam("console").getValue(),
     }
 
 
@@ -471,6 +530,8 @@ def _wrote_frames(job):
 
 def _finish_job(job):
     """Conversion done: point the Reads that asked for it to the EXR, else create one."""
+    if _sequence_pattern(job["outdir"], job["name"]):
+        _set_read_state(job, -1, job["name"])
     reads = job.get("reads") or []
     if not reads:
         return create_read(job) is not None
@@ -513,6 +574,17 @@ def start_conversion(clip, reads=None):
     _log(" ".join('"%s"' % a if " " in a else a for a in args))
     job = {"name": name, "outdir": outdir, "clip": opts["clip"], "ocio": COLORS[opts["color"]][2],
            "reads": list(reads or [])}
+    # Frame count for the progress bar (clip range, or start/end when set)
+    total = clip_frame_count(redline, opts["clip"])
+    if opts["end"] > 0:
+        total = opts["end"] - max(0, opts["start"]) + 1
+    elif total and opts["start"] > 0:
+        total = max(1, total - opts["start"])
+    job["total"] = total or 0
+    if not opts["wait"] and not job["reads"]:
+        ph = placeholder_read(name)
+        if ph:
+            job["reads"] = [ph]
     logpath = os.path.join(outdir, "redline.log")
     job["log"] = logpath
     if opts["wait"]:
@@ -527,19 +599,15 @@ def start_conversion(clip, reads=None):
         if not _finish_job(job):
             _message("REDline finished but no EXR was found in " + outdir, error=True)
         return
-    # Background: REDline's own window shows the progress, or (window off)
-    # its output goes to <outdir>/redline.log, shown if it fails.
+    # Background, no window: the Read shows the progress (bar on the node,
+    # percentage in its label); REDline's output goes to <outdir>/redline.log.
     try:
-        if opts.get("console", True):
-            job["log"] = None
-            proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
-        else:
-            logf = open(logpath, "w")
-            logf.write(_cmdline(args) + "\n\n")
-            logf.flush()
-            proc = subprocess.Popen(args, stdout=logf, stderr=subprocess.STDOUT,
-                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            logf.close()   # the child keeps its own handle
+        logf = open(logpath, "w")
+        logf.write(_cmdline(args) + "\n\n")
+        logf.flush()
+        proc = subprocess.Popen(args, stdout=logf, stderr=subprocess.STDOUT,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        logf.close()   # the child keeps its own handle
     except OSError:
         cfg.pop("redline", None)
         _save(cfg)
@@ -553,9 +621,10 @@ def start_conversion(clip, reads=None):
     cfg["pending"] = [j for j in cfg["pending"] if j["outdir"] != outdir] + [job]
     _save(cfg)
     what = "The Read switches to the EXR sequence" if reads else "The Read is created"
-    where = "see the REDline window" if job["log"] is None else "log: " + logpath
+    where = "log: " + logpath
+    update_progress(job)
     if _schedule_poll():
-        _message("Conversion started (%s).\n%s automatically when it is finished." % (where, what))
+        _log("Conversion started (%s). %s automatically when it is finished." % (where, what))
     else:
         _message("Conversion started (%s).\n" % where +
                  "Natron cannot watch it (needs this fork's callLater): load the EXR from " + outdir + " when it is done.")

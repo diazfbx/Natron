@@ -672,6 +672,24 @@ Effect::getColor(double* r,
 }
 
 void
+Effect::setProgress(double p)
+{
+    NodePtr node = liveNode();
+
+    if (node) {
+        node->setExternalProgress(p);
+    }
+}
+
+double
+Effect::getProgress() const
+{
+    NodePtr node = liveNode();
+
+    return node ? node->getExternalProgress() : -1.;
+}
+
+void
 Effect::setColor(double r,
                  double g,
                  double b)

@@ -7442,6 +7442,22 @@ Node::getHostMixingValue(double time,
 }
 
 
+void
+Node::setExternalProgress(double p)
+{
+    if (p > 1.) {
+        p = 1.;
+    }
+    if (p < 0.) {
+        p = -1.;
+    }
+    if (p == _externalProgress) {
+        return;
+    }
+    _externalProgress = p;
+    Q_EMIT externalProgressChanged(p);
+}
+
 NATRON_NAMESPACE_EXIT
 
 NATRON_NAMESPACE_USING

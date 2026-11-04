@@ -531,6 +531,75 @@ def create_read(job):
     return node
 
 
+# ---------------------------------------------------------------- progress on the Read
+
+def _frames_written(job):
+    if not os.path.isdir(job["outdir"]):
+        return 0
+    rx = re.compile(r"^" + re.escape(job["name"]) + r"\.\d+\.exr$", re.I)
+    return sum(1 for f in os.listdir(job["outdir"]) if rx.match(f))
+
+
+def placeholder_read(name):
+    """The Read is created right away: it shows the progress, then gets the EXR."""
+    node = _app().createNode("fr.inria.built-in.Read")
+    if node is None:
+        return None
+    try:
+        node.setLabel(name + " (converting)")
+    except Exception:
+        pass
+    return node.getScriptName()
+
+
+def _set_read_state(job, progress, label):
+    app = _app()
+    for name in job.get("reads") or []:
+        node = app.getNode(name)
+        if node is None:
+            continue
+        try:
+            if hasattr(node, "setProgress"):     # this fork: bar drawn on the node
+                node.setProgress(progress)
+            node.setLabel(label)
+        except Exception:
+            pass
+
+
+def update_progress(job):
+    done = _frames_written(job)
+    total = job.get("total") or 0
+    if total > 0:
+        p = min(0.99, done / float(total))
+        _set_read_state(job, p, "%s  %d%%" % (job["name"], int(p * 100)))
+    else:
+        _set_read_state(job, 0.0, "%s  %d frames" % (job["name"], done))
+
+
+def arri_frame_count(tool, clip, start, duration):
+    """Frames art-cmd will render: --duration, the .ari/.arx files, or the
+    per-frame metadata rows of `art-cmd export ... .csv` (manual 4)."""
+    if duration > 0:
+        return duration
+    total = 0
+    if "#" in clip or "%" in clip:
+        pat = re.sub(r"#+", lambda m: "[0-9]" * len(m.group(0)), clip)
+        pat = re.sub(r"%0?(\d*)d", lambda m: "[0-9]" * int(m.group(1) or 1), pat)
+        total = len(glob.glob(pat))
+    else:
+        try:
+            import tempfile
+            csv = os.path.join(tempfile.gettempdir(), "natron_camraw_meta.csv")
+            _run_text([tool, "export", "--input", _arri_input(clip),
+                       "--output", csv], timeout=120)
+            with open(csv, "r", errors="replace") as fh:
+                total = max(0, sum(1 for l in fh if l.strip()) - 1)   # header row
+            os.remove(csv)
+        except Exception:
+            _log("frame count (art-cmd export) failed\n" + traceback.format_exc())
+    return max(0, total - max(0, start)) if total else 0
+
+
 def _finish_job(job):
     """Conversion done: rename if needed, point the waiting Reads at the EXR, else create one."""
     if job.get("rename"):
@@ -538,6 +607,7 @@ def _finish_job(job):
     pattern = _sequence_pattern(job["outdir"], job["name"])
     if not pattern:
         return False
+    _set_read_state(job, -1, job["name"])
     app = _app()
     done = False
     for name in job.get("reads") or []:
@@ -582,14 +652,16 @@ def camraw_poll():
             if rc is None:
                 still = True
                 left.append(job)
+                update_progress(job)
                 continue
             _RUNNING.pop(job["outdir"], None)
             if rc != 0:
+                _set_read_state(job, -1, job["name"] + " (conversion failed)")
                 _message(_failure_text(job, rc), error=True)
             elif not _finish_job(job):
                 _message("%s finished %s but no EXR was found in %s." % (job["tool"], job["name"], job["outdir"]), error=True)
             else:
-                _message("Conversion finished: %s is loaded from its EXR sequence." % job["name"])
+                _log("Conversion finished: %s is loaded from its EXR sequence." % job["name"])
         cfg["pending"] = left
         _save(cfg)
         if still:
@@ -652,10 +724,9 @@ def _run(fmt, args, job, wait):
     cfg = _load()
     cfg["pending"] = [j for j in cfg.get("pending", []) if j["outdir"] != job["outdir"]] + [job]
     _save(cfg)
-    what = "The Read switches to the EXR sequence" if job.get("reads") else "The Read is created"
+    update_progress(job)
     if _schedule_poll():
-        _message("Conversion started in the background (log: %s).\n%s automatically when it is finished."
-                 % (job["log"], what))
+        _log("Conversion started in the background (log: %s)" % job["log"])
     else:
         _message("Conversion started in the background (log: %s).\nLoad the EXR from %s when it is done."
                  % (job["log"], job["outdir"]))
@@ -682,7 +753,8 @@ def start_conversion(clip, reads=None):
         args = arri_args(tool, opts, codecs, colors, name)
         job = {"fmt": "arri", "tool": fmt["tool"], "name": name, "outdir": opts["outdir"],
                "clip": opts["clip"], "ocio": colors[opts["color"]][2], "reads": reads,
-               "renum": opts["renum"]}
+               "renum": opts["renum"],
+               "total": arri_frame_count(tool, opts["clip"], opts["start"], opts["duration"])}
     else:
         info = braw_probe(tool, clip)
         if not info["ok"]:
@@ -694,8 +766,18 @@ def start_conversion(clip, reads=None):
             return
         name = _clip_name(opts["clip"])
         args = braw_args(tool, opts, name)
+        try:
+            total = max(0, int(info.get("frames") or 0) - max(0, opts["start"]))
+        except ValueError:
+            total = 0
+        if opts["count"] > 0:
+            total = min(total, opts["count"]) if total else opts["count"]
         job = {"fmt": "braw", "tool": fmt["tool"], "name": name, "outdir": opts["outdir"],
-               "clip": opts["clip"], "ocio": _braw_ocio(opts), "reads": reads}
+               "clip": opts["clip"], "ocio": _braw_ocio(opts), "reads": reads, "total": total}
+    if not opts["wait"] and not job["reads"]:
+        ph = placeholder_read(name)       # the Read exists from the start, with the progress
+        if ph:
+            job["reads"] = [ph]
     _run(fmt, args, job, opts["wait"])
 
 
