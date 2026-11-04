@@ -169,6 +169,7 @@
 
 // Dev nodes — Transform
 #include "Dev/Transform/LensWarp.h"
+#include "Dev/Transform/LD3DE4.h"
 #include "Dev/Transform/SphericalTransform.h"
 
 // Dev nodes — Color
@@ -1802,6 +1803,7 @@ AppManager::loadBuiltinNodePlugins(IOPluginsMap* /*readersMap*/,
 
     // Dev nodes — Transform
     registerBuiltInPlugin<LensWarp>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/transform_grouping_2.png"), false, false);
+    registerBuiltInPlugin<LD3DE4>(QString(), false, false);   // 3DE4 lens distortion (LDPK), no icon
     registerBuiltInPlugin<SphericalTransform>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/transform_grouping_2.png"), false, false);
 
     // Dev nodes — Color

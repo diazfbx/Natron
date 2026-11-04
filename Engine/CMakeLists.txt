@@ -175,6 +175,7 @@ target_include_directories(NatronEngine
         ..
         ../Global
         ../libs/SequenceParsing
+        ../libs/ldpk/include
         Dev/Deep
         Dev/Scene3D
         Dev/Particles
