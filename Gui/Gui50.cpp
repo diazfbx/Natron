@@ -98,6 +98,14 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 #include "Gui/NodeGuiSerialization.h"
 #include "Gui/ProjectGuiSerialization.h"
 #include "Engine/NodeSerialization.h"
+// Same serialization headers as Engine/Project.cpp: they carry the
+// BOOST_CLASS_VERSION of Format, BezierCP, RectD/I. Instantiating the loader
+// for a type without its version declared registers version 0 for the whole
+// program and then every .ntp fails with "class version N6Natron6FormatE".
+#include "Engine/BezierCPSerialization.h"
+#include "Engine/FormatSerialization.h"
+#include "Engine/RectDSerialization.h"
+#include "Engine/RectISerialization.h"
 #include "Engine/ProjectSerialization.h"
 #include "Engine/Format.h"
 
