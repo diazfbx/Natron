@@ -132,6 +132,7 @@ struct ScanlineRenderPrivate
     // Wireframe line colour and width (pixels at full resolution).
     KnobColorWPtr  wireframeColor;
     KnobDoubleWPtr wireframeWidth;
+    KnobDoubleWPtr wireframeOpacity;   // 0..1, lines composited over the render
 
     // Global ambient fill colour added to surfaces in Shaded mode (so unlit /
     // back-facing areas aren't pure black). Multiplies the surface colour, like
@@ -316,6 +317,18 @@ ScanlineRender::initializeKnobs()
                               "(scaled down with the proxy / render scale)."));
         outPage->addKnob(k); _imp->wireframeWidth = k;
     }
+    {
+        KnobDoublePtr k = AppManager::createKnob<KnobDouble>(this, tr("Wireframe Opacity"));
+        k->setName("wireframeOpacity");
+        k->setDefaultValue(1.0);
+        k->setMinimum(0.0); k->setMaximum(1.0);
+        k->setDisplayMinimum(0.0); k->setDisplayMaximum(1.0);
+        k->setHintToolTip(tr("Opacity of the wireframe lines (Wireframe shading): "
+                              "1 = solid lines, lower values make them translucent "
+                              "(the output alpha follows, premultiplied)."));
+        outPage->addKnob(k); _imp->wireframeOpacity = k;
+    }
+    refreshWireframeKnobsVisibility(); // hidden unless Shading Mode = Wireframe
     {
         KnobColorPtr k = AppManager::createKnob<KnobColor>(this, tr("Ambient"), 3);
         k->setName("ambient");
@@ -600,6 +613,26 @@ ScanlineRender::initializeKnobs()
 }
 
 void
+ScanlineRender::refreshWireframeKnobsVisibility()
+{
+    const bool isWire = _imp->shadingMode.lock()
+                      && _imp->shadingMode.lock()->getValue() == 2;
+    if (KnobChoicePtr k = _imp->wireframeEdges.lock())   k->setSecret(!isWire);
+    if (KnobBoolPtr k = _imp->wireframeOpaque.lock())    k->setSecret(!isWire);
+    if (KnobColorPtr k = _imp->wireframeColor.lock())    k->setSecret(!isWire);
+    if (KnobDoublePtr k = _imp->wireframeWidth.lock())   k->setSecret(!isWire);
+    if (KnobDoublePtr k = _imp->wireframeOpacity.lock()) k->setSecret(!isWire);
+}
+
+void
+ScanlineRender::onKnobsLoaded()
+{
+    // Saved projects restore Shading Mode after initializeKnobs ran.
+    refreshWireframeKnobsVisibility();
+    refreshTrailKnobsVisibility();
+}
+
+void
 ScanlineRender::refreshTrailKnobsVisibility()
 {
     const bool isTrail = _imp->particleMode.lock()
@@ -622,6 +655,12 @@ ScanlineRender::knobChanged(KnobI* k, ValueChangedReasonEnum /*reason*/,
     if (_imp->particleMode.lock() && k == _imp->particleMode.lock().get()) {
         refreshTrailKnobsVisibility();
         return false; // mode change still evaluates normally
+    }
+
+    // Wireframe knobs only matter in Wireframe shading.
+    if (_imp->shadingMode.lock() && k == _imp->shadingMode.lock().get()) {
+        refreshWireframeKnobsVisibility();
+        return false;
     }
 
     // Sync to Project — copy project default format → width/height.
@@ -1190,6 +1229,7 @@ static const char* kBeautyFrag =
     "uniform vec3 u_cameraPos;       // world-space camera position (fallback headlight when no Light3D)\n"
     "uniform vec3 u_ambient;         // global ambient fill colour (Shaded mode)\n"
     "uniform vec3 u_wireColor;       // Wireframe shading line colour\n"
+    "uniform float u_wireAlpha;      // Wireframe line opacity\n"
     "uniform int u_transparency;     // 1 = respect surface alpha, 0 = force opaque\n"
     "uniform int u_writeNormal;      // attachment 1 (Phase 3D)\n"
     "uniform int u_writeUV;          // attachment 2 (Phase 3D)\n"
@@ -1237,7 +1277,7 @@ static const char* kBeautyFrag =
     "void main() {\n"
     "    // --- Wireframe: solid white edges, skip texture sampling + lighting ---\n"
     "    if (u_shadingMode == 2) {\n"
-    "        out_color = vec4(u_wireColor, 1.0);\n"
+    "        out_color = vec4(u_wireColor, u_wireAlpha);\n"
     "    } else {\n"
     "        // --- Base color from texture / STW / vertex (existing logic) ---\n"
     "        vec4 baseColor;\n"
@@ -1549,6 +1589,7 @@ static const char* kInstanceFrag =
     "uniform vec3 u_cameraPos;\n"
     "uniform vec3 u_ambient;\n"
     "uniform vec3 u_wireColor;\n"
+    "uniform float u_wireAlpha;\n"
     "uniform int  u_transparency;\n"
     "uniform int  u_writeNormal;\n"
     "uniform int  u_writeUV;\n"
@@ -1566,7 +1607,7 @@ static const char* kInstanceFrag =
     "    vec4 col = v_color;\n"
     "    if (u_hasTexture == 1) { vec4 tc = texture(u_tex, v_uv); col = vec4(col.rgb * tc.rgb, col.a * tc.a); }\n"
     "    if (u_shadingMode == 2) {\n"
-    "        out_color = vec4(u_wireColor, 1.0);\n"
+    "        out_color = vec4(u_wireColor, u_wireAlpha);\n"
     "    } else if (u_shadingMode == 0) {\n"
     "        vec3 N = normalize(v_worldNormal);\n"
     "        vec3 L; vec3 lCol; float lInt;\n"
@@ -2856,6 +2897,8 @@ ScanlineRender::render(const RenderActionArgs& args)
     }
     float wireWidth = _imp->wireframeWidth.lock() ? (float)_imp->wireframeWidth.lock()->getValueAtTime(args.time) : 1.0f;
     wireWidth = std::max(0.1f, wireWidth / (float)(1u << args.mappedScale.toMipmapLevel()));
+    float wireAlpha = _imp->wireframeOpacity.lock() ? (float)_imp->wireframeOpacity.lock()->getValueAtTime(args.time) : 1.0f;
+    wireAlpha = std::min(1.0f, std::max(0.0f, wireAlpha));
 
     // Transparency: 1 = respect surface alpha, 0 = force opaque.
     const int transparency = (_imp->transparency.lock() && !_imp->transparency.lock()->getValue()) ? 0 : 1;
@@ -3450,7 +3493,14 @@ ScanlineRender::render(const RenderActionArgs& args)
         if (locBeautyTransp >= 0) glUniform1i(locBeautyTransp, transparency);
         const GLint locBeautyWire = glGetUniformLocation(glslBeautyProg, "u_wireColor");
         if (locBeautyWire >= 0) glUniform3fv(locBeautyWire, 1, wireColor);
-        if (shadingMode == 2) glLineWidth(wireWidth);
+        const GLint locBeautyWireA = glGetUniformLocation(glslBeautyProg, "u_wireAlpha");
+        if (locBeautyWireA >= 0) glUniform1f(locBeautyWireA, wireAlpha);
+        if (shadingMode == 2) {
+            glLineWidth(wireWidth);
+            // Colour: over (src*a + dst*(1-a)); alpha: a + dstA*(1-a), so a
+            // translucent wire leaves a premultiplied, non-squared alpha.
+            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        }
         if (wireframeOpaque) {
             // Hidden-line pre-pass: every surface into the depth buffer only, pushed
             // slightly back so its own edges (drawn next, at the same depth) pass the
@@ -3481,7 +3531,10 @@ ScanlineRender::render(const RenderActionArgs& args)
                                 wantsPrefMrt, wantsVelocityMrt,
                                 polygonWireEdges);
         }
-        if (shadingMode == 2) glLineWidth(1.0f);
+        if (shadingMode == 2) {
+            glLineWidth(1.0f);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
         glUseProgram(0);
         // Restore single-attachment draw buffer so particles + volumes only
         // paint into beauty (they don't emit AOV outputs).
@@ -4144,7 +4197,10 @@ ScanlineRender::render(const RenderActionArgs& args)
             glEnable(GL_CULL_FACE);
             glCullFace(GL_BACK);
             glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            if (shadingMode == 2) // translucent wire: keep alpha premultiplied (see beauty pass)
+                glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            else
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
             // Re-enable MRT so instances can write Normal/UV/Pref/Velocity AOVs
             // (same pattern as the particle pass — beauty keeps over-blend, AOV
@@ -4323,6 +4379,8 @@ ScanlineRender::render(const RenderActionArgs& args)
             if (locAmbientI     >= 0) glUniform3fv(locAmbientI, 1, ambient);
             const GLint locWireI = glGetUniformLocation(glslInstanceProg, "u_wireColor");
             if (locWireI        >= 0) glUniform3fv(locWireI, 1, wireColor);
+            const GLint locWireAI = glGetUniformLocation(glslInstanceProg, "u_wireAlpha");
+            if (locWireAI       >= 0) glUniform1f(locWireAI, wireAlpha);
             if (locTranspI      >= 0) glUniform1i(locTranspI, transparency);
             if (locViewMat      >= 0) glUniformMatrix4fv(locViewMat, 1, GL_FALSE, viewMatrix);
             if (locNearI        >= 0) glUniform1f(locNearI, camNear);

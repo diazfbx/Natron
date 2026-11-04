@@ -109,6 +109,9 @@ private:
 
     // Trail-mode knobs are hidden unless Particle Mode = Trail.
     void refreshTrailKnobsVisibility();
+    // Wireframe Mesh / Opaque / Color / Width / Opacity: hidden unless Shading Mode = Wireframe.
+    void refreshWireframeKnobsVisibility();
+    virtual void onKnobsLoaded() OVERRIDE FINAL;
     virtual StatusEnum getRegionOfDefinition(U64 hash, double time, const RenderScale& scale, ViewIdx view, RectD* rod) OVERRIDE FINAL WARN_UNUSED_RETURN;
     virtual StatusEnum getPreferredMetadata(NodeMetadata& metadata) OVERRIDE FINAL WARN_UNUSED_RETURN;
     virtual StatusEnum render(const RenderActionArgs& args) OVERRIDE WARN_UNUSED_RETURN;
