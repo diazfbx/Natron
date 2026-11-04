@@ -1066,6 +1066,58 @@ QDialog, QMainWindow, QScrollArea, QDialogButtonBox {
     background-color: #323232;
 }
 
+/* ---------------------------------------------------------------------
+ * No black outlines (Nuke draws its widgets flat): buttons, drop-downs,
+ * tabs and panes lose their dark frame; text fields keep a faint edge.
+ * --------------------------------------------------------------------- */
+QPushButton,
+QPushButton:hover,
+QPushButton:focus,
+QPushButton:pressed {
+    border: 0px;
+}
+QToolButton,
+QToolButton:pressed,
+QToolButton:focus {
+    border: 0px;
+}
+ComboBox,
+Natron--ComboBox,
+QComboBox {
+    border: 0px;
+}
+QComboBox QAbstractItemView {
+    border: 1px solid #262626;
+}
+QLineEdit,
+QLineEdit:focus {
+    border: 1px solid #2b2b2b;
+}
+QTabBar::tab,
+QTabBar::tab:selected,
+QTabBar::tab:!selected {
+    border: 0px;
+    margin-right: 1px;
+}
+QTabWidget::pane {
+    border: 0px;
+    border-top: 1px solid #262626;
+}
+TabWidget,
+Natron--TabWidget {
+    border: 0px;
+}
+QScrollArea,
+QGraphicsView {
+    border: 0px;
+}
+QMenu {
+    border: 1px solid #262626;
+}
+QToolTip {
+    border: 0px;
+}
+
 /* =====================================================================
  * 3. accents (Nuke: orange text on the focused panel's tab, orange
  *    highlights; yellow section titles)
