@@ -850,6 +850,15 @@ Gui::createMenuActions()
     _imp->menuHelp->addAction(_imp->actionHelpIssues);
     QObject::connect( _imp->actionHelpIssues, SIGNAL(triggered()), this, SLOT(openHelpIssues()) );
 
+    // Download pages of the external camera RAW converters (R3D / ARRIRAW / BRAW
+    // imports): their licences do not allow shipping them with Natron.
+    {
+        _imp->menuHelp->addSeparator();
+        QAction* rawTools = new QAction(tr("Camera RAW Converters (Downloads)..."), this);
+        _imp->menuHelp->addAction(rawTools);
+        QObject::connect( rawTools, SIGNAL(triggered()), this, SLOT(showCameraRawDownloads()) );
+    }
+
 #ifndef __APPLE__
     _imp->menuHelp->addSeparator();
     _imp->menuHelp->addAction(_imp->actionShowAboutWindow);

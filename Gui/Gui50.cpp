@@ -57,6 +57,7 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 #include <QProgressDialog>
 #include <QClipboard>
 #include <QVBoxLayout>
+#include <QMessageBox>   // Help > Camera RAW Converters (Downloads)
 #include <QTreeWidget>
 #include <QThread>
 #include <QTabBar>
@@ -2094,6 +2095,28 @@ runCameraRawImport(const char* function, const QString& title)
                               Gui::tr("This import needs the CameraRAW_Import PyPlug (Plugins/PyPlugs/CameraRAW_Import).\n%1")
                               .arg( QString::fromUtf8( err.c_str() ) ).toStdString() );
     }
+}
+
+void
+Gui::showCameraRawDownloads()
+{
+    const QString html = tr(
+        "<p>Natron converts camera RAW clips to OpenEXR with the camera makers' free tools. "
+        "Their licences do not allow shipping them with Natron: install the ones you need "
+        "(Natron finds them in their default folders, or asks for their location).</p>"
+        "<p><b>RED .R3D</b> (File &gt; Import R3D): <b>REDCINE-X PRO</b>, which installs REDline<br>"
+        "<a href=\"https://www.red.com/downloads\">https://www.red.com/downloads</a></p>"
+        "<p><b>ARRIRAW .ari / .arx / .mxf</b> (File &gt; Import ARRIRAW): <b>ARRI Reference Tool CMD</b> (art-cmd)<br>"
+        "<a href=\"https://www.arri.com/en/learn-help/learn-help-camera-system/tools/arri-reference-tool\">"
+        "https://www.arri.com/en/learn-help/learn-help-camera-system/tools/arri-reference-tool</a></p>"
+        "<p><b>Blackmagic RAW .braw</b> (File &gt; Import BRAW): <b>braw2exr</b> (tools/braw2exr of this fork), "
+        "built with the free <b>Blackmagic RAW SDK</b><br>"
+        "<a href=\"https://www.blackmagicdesign.com/developer/products/braw\">"
+        "https://www.blackmagicdesign.com/developer/products/braw</a></p>");
+    QMessageBox box(QMessageBox::Information, tr("Camera RAW Converters"), html, QMessageBox::Ok, this);
+    box.setTextFormat(Qt::RichText);
+    box.setTextInteractionFlags(Qt::TextBrowserInteraction);   // clickable links (open in the browser)
+    box.exec();
 }
 
 void

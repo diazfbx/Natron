@@ -605,6 +605,8 @@ public Q_SLOTS:
     // File > Import ARRIRAW / Blackmagic RAW: CameraRAW_Import PyPlug.
     void importArriClip();
     void importBrawClip();
+    // Help > Camera RAW Converters (Downloads): clickable download links.
+    void showCameraRawDownloads();
     void createTemplateMegascansAsset();
 
     void autoSave();
