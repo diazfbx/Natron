@@ -478,11 +478,17 @@ KronosNode::render(const RenderActionArgs& args)
             }
             return true;
         }
-        flow::FieldPtr fwd = getFlow(this, 0, i0, i0 + 1, args.mappedScale, args.view, R, fp, tag, f0, f1);
-        flow::FieldPtr bwd = getFlow(this, 0, i0 + 1, i0, args.mappedScale, args.view, R, fp, tag, f1, f0);
-        if (!fwd || !bwd) {
+        flow::FieldPtr fwdRaw = getFlow(this, 0, i0, i0 + 1, args.mappedScale, args.view, R, fp, tag, f0, f1);
+        flow::FieldPtr bwdRaw = getFlow(this, 0, i0 + 1, i0, args.mappedScale, args.view, R, fp, tag, f1, f0);
+        if (!fwdRaw || !bwdRaw) {
             return false;
         }
+        // drop absurd vectors (the occlusion test of the interpolation still
+        // needs the raw forward / backward disagreement, so only spikes go)
+        std::shared_ptr<flow::Field> fwdC = std::make_shared<flow::Field>(), bwdC = std::make_shared<flow::Field>();
+        flow::cleanFlow(*fwdRaw, NULL, fwdC.get());
+        flow::cleanFlow(*bwdRaw, NULL, bwdC.get());
+        flow::FieldPtr fwd = fwdC, bwd = bwdC;
         static const std::vector<float> none;
         const std::vector<float>& m0 = matteMode != eMatteNone ? mattes[i0] : none;
         const std::vector<float>& m1 = matteMode != eMatteNone ? mattes[i0 + 1] : none;

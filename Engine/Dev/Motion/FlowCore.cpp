@@ -820,6 +820,432 @@ interpolate(const float* A, const float* B, int w, int h, int nc,
     });
 }
 
+// ------------------------------------------------------------------ robust vectors
+
+void
+cleanFlow(const Field& f, const Field* back, Field* out, std::vector<float>* confidence)
+{
+    *out = f;
+    if ( !f.valid() ) {
+        return;
+    }
+    const int w = f.w, h = f.h;
+    const size_t n = (size_t)w * h;
+    const float s = std::max(1.f, (float)std::max(w, h) / 1920.f);   // resolution scale (1 = HD)
+    const bool haveBack = back && back->valid() && back->w == w && back->h == h;
+
+    // Neighbourhood medians on blocks (subsampled), then 3x3 median of blocks.
+    const int Bm = std::max(16, (int)std::lround(32.f * s));
+    const int mgw = (w + Bm - 1) / Bm, mgh = (h + Bm - 1) / Bm;
+    std::vector<float> mu((size_t)mgw * mgh), mv((size_t)mgw * mgh);
+    parallelFor(mgh, [&](int b, int e) {
+        std::vector<float> bu, bv;
+        const int st = std::max(1, Bm / 8);
+        for (int gy = b; gy < e; ++gy) {
+            for (int gx = 0; gx < mgw; ++gx) {
+                bu.clear();
+                bv.clear();
+                for (int y = gy * Bm; y < std::min(h, (gy + 1) * Bm); y += st) {
+                    for (int x = gx * Bm; x < std::min(w, (gx + 1) * Bm); x += st) {
+                        bu.push_back(f.uAt(x, y));
+                        bv.push_back(f.vAt(x, y));
+                    }
+                }
+                if ( bu.empty() ) {
+                    continue;
+                }
+                std::nth_element(bu.begin(), bu.begin() + bu.size() / 2, bu.end());
+                std::nth_element(bv.begin(), bv.begin() + bv.size() / 2, bv.end());
+                mu[(size_t)gy * mgw + gx] = bu[bu.size() / 2];
+                mv[(size_t)gy * mgw + gx] = bv[bv.size() / 2];
+            }
+        }
+    });
+    {
+        std::vector<float> su = mu, sv = mv;
+        for (int gy = 0; gy < mgh; ++gy) {
+            for (int gx = 0; gx < mgw; ++gx) {
+                float a[9], c[9];
+                int k = 0;
+                for (int j = -1; j <= 1; ++j) {
+                    for (int i = -1; i <= 1; ++i) {
+                        const int xx = std::max(0, std::min(mgw - 1, gx + i)), yy = std::max(0, std::min(mgh - 1, gy + j));
+                        a[k] = su[(size_t)yy * mgw + xx];
+                        c[k] = sv[(size_t)yy * mgw + xx];
+                        ++k;
+                    }
+                }
+                std::nth_element(a, a + 4, a + 9);
+                std::nth_element(c, c + 4, c + 9);
+                mu[(size_t)gy * mgw + gx] = a[4];
+                mv[(size_t)gy * mgw + gx] = c[4];
+            }
+        }
+    }
+
+    // Reliability per pixel.
+    std::vector<unsigned char> ok(n, 1);
+    const float tolAbs = (1.5f * s) * (1.5f * s);
+    parallelFor(h, [&](int b, int e) {
+        for (int y = b; y < e; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const size_t i = (size_t)y * w + x;
+                const float fu = f.u[i], fv = f.v[i];
+                if ( !(fu == fu) || !(fv == fv) ) {   // NaN
+                    ok[i] = 0;
+                    continue;
+                }
+                // forward / backward check (only when the target is in the frame)
+                const float tx = x + fu, ty = y + fv;
+                if ( haveBack && tx >= 0.f && ty >= 0.f && tx <= (float)(w - 1) && ty <= (float)(h - 1) ) {
+                    float bu, bv;
+                    back->sample(tx, ty, &bu, &bv);
+                    const float eu = fu + bu, ev = fv + bv;
+                    const float tol = 0.03f * (fu * fu + fv * fv + bu * bu + bv * bv) + tolAbs;
+                    if (eu * eu + ev * ev > tol) {
+                        ok[i] = 0;
+                        continue;
+                    }
+                }
+                // wild spikes against the neighbourhood
+                const size_t g = (size_t)std::min(mgh - 1, y / Bm) * mgw + std::min(mgw - 1, x / Bm);
+                const float du = fu - mu[g], dv = fv - mv[g];
+                const float ml = std::sqrt(mu[g] * mu[g] + mv[g] * mv[g]);
+                const float lim = std::max(64.f * s, 3.f * ml + 32.f * s);   // absurd vectors only
+                if (du * du + dv * dv > lim * lim) {
+                    ok[i] = 0;
+                }
+            }
+        }
+    });
+    if (confidence) {
+        confidence->resize(n);
+        for (size_t i = 0; i < n; ++i) {
+            (*confidence)[i] = ok[i] ? 1.f : 0.f;
+        }
+    }
+
+    // Fill: mean of the reliable vectors per small block, holes in the block
+    // grid filled from their neighbours, then bilinear at the bad pixels.
+    const int Bf = std::max(4, (int)std::lround(8.f * s));
+    const int gw = (w + Bf - 1) / Bf, gh = (h + Bf - 1) / Bf;
+    std::vector<float> gu((size_t)gw * gh, 0.f), gv((size_t)gw * gh, 0.f);
+    std::vector<unsigned char> gok((size_t)gw * gh, 0);
+    parallelFor(gh, [&](int b, int e) {
+        for (int gy = b; gy < e; ++gy) {
+            for (int gx = 0; gx < gw; ++gx) {
+                double su = 0., sv = 0.;
+                int cnt = 0, tot = 0;
+                for (int y = gy * Bf; y < std::min(h, (gy + 1) * Bf); ++y) {
+                    for (int x = gx * Bf; x < std::min(w, (gx + 1) * Bf); ++x) {
+                        const size_t i = (size_t)y * w + x;
+                        ++tot;
+                        if (ok[i]) {
+                            su += f.u[i];
+                            sv += f.v[i];
+                            ++cnt;
+                        }
+                    }
+                }
+                const size_t g = (size_t)gy * gw + gx;
+                if ( cnt > 0 && cnt * 4 >= tot ) {
+                    gu[g] = (float)(su / cnt);
+                    gv[g] = (float)(sv / cnt);
+                    gok[g] = 1;
+                }
+            }
+        }
+    });
+    for (int pass = 0; pass < 4096; ++pass) {
+        std::vector<unsigned char> next = gok;
+        size_t missing = 0, fixedNow = 0;
+        for (int gy = 0; gy < gh; ++gy) {
+            for (int gx = 0; gx < gw; ++gx) {
+                const size_t g = (size_t)gy * gw + gx;
+                if (gok[g]) {
+                    continue;
+                }
+                ++missing;
+                float su = 0.f, sv = 0.f;
+                int cnt = 0;
+                for (int j = -1; j <= 1; ++j) {
+                    for (int i = -1; i <= 1; ++i) {
+                        const int xx = gx + i, yy = gy + j;
+                        if (xx < 0 || yy < 0 || xx >= gw || yy >= gh) {
+                            continue;
+                        }
+                        const size_t q = (size_t)yy * gw + xx;
+                        if (gok[q]) {
+                            su += gu[q];
+                            sv += gv[q];
+                            ++cnt;
+                        }
+                    }
+                }
+                if (cnt) {
+                    gu[g] = su / cnt;
+                    gv[g] = sv / cnt;
+                    next[g] = 1;
+                    ++fixedNow;
+                }
+            }
+        }
+        gok.swap(next);
+        if (missing == 0 || fixedNow == 0) {
+            break;
+        }
+    }
+    parallelFor(h, [&](int b, int e) {
+        for (int y = b; y < e; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const size_t i = (size_t)y * w + x;
+                if (ok[i]) {
+                    continue;
+                }
+                const float fx = std::max(0.f, std::min( (float)(gw - 1), ( (float)x + 0.5f ) / Bf - 0.5f ));
+                const float fy = std::max(0.f, std::min( (float)(gh - 1), ( (float)y + 0.5f ) / Bf - 0.5f ));
+                const int x0 = (int)fx, y0 = (int)fy;
+                const int x1 = std::min(gw - 1, x0 + 1), y1 = std::min(gh - 1, y0 + 1);
+                const float tx = fx - x0, ty = fy - y0;
+                auto lerp2 = [&](const std::vector<float>& G) {
+                    return (G[(size_t)y0 * gw + x0] * (1.f - tx) + G[(size_t)y0 * gw + x1] * tx) * (1.f - ty) +
+                           (G[(size_t)y1 * gw + x0] * (1.f - tx) + G[(size_t)y1 * gw + x1] * tx) * ty;
+                };
+                out->u[i] = lerp2(gu);
+                out->v[i] = lerp2(gv);
+            }
+        }
+    });
+}
+
+// ------------------------------------------------------------------ motion blur
+
+void
+motionBlurGather(const float* img, int w, int h, int nc, const Field* fwd, const Field* bwd,
+                 const float* matte, const std::vector<float>* confF, const std::vector<float>* confB,
+                 float shutter, int samples, FilterEnum filter, float* out)
+{
+    const size_t n = (size_t)w * h;
+    const Field* F = (fwd && fwd->valid() && fwd->w == w && fwd->h == h) ? fwd : nullptr;
+    const Field* B = (bwd && bwd->valid() && bwd->w == w && bwd->h == h) ? bwd : nullptr;
+    if ( (!F && !B) || shutter <= 0.f || w <= 0 || h <= 0 ) {
+        std::copy(img, img + n * nc, out);
+        return;
+    }
+    if ( confF && confF->size() != n ) {
+        confF = nullptr;
+    }
+    if ( confB && confB->size() != n ) {
+        confB = nullptr;
+    }
+    const float half = 0.5f * shutter;
+    // per-frame motion forward / backward at a pixel index or a position
+    auto vecF = [&](size_t i, float* u, float* v) {
+        if (F) { *u = F->u[i]; *v = F->v[i]; } else { *u = -B->u[i]; *v = -B->v[i]; }
+    };
+    auto vecB = [&](size_t i, float* u, float* v) {
+        if (B) { *u = B->u[i]; *v = B->v[i]; } else { *u = -F->u[i]; *v = -F->v[i]; }
+    };
+    auto sampleF = [&](float x, float y, float* u, float* v) {
+        if (F) { F->sample(x, y, u, v); } else { B->sample(x, y, u, v); *u = -*u; *v = -*v; }
+    };
+    auto sampleB = [&](float x, float y, float* u, float* v) {
+        if (B) { B->sample(x, y, u, v); } else { F->sample(x, y, u, v); *u = -*u; *v = -*v; }
+    };
+    auto nearestIdx = [&](float x, float y) {
+        const int xi = std::max(0, std::min(w - 1, (int)std::lround(x)));
+        const int yi = std::max(0, std::min(h - 1, (int)std::lround(y)));
+        return (size_t)yi * w + xi;
+    };
+
+    // Longest displacement over half the shutter -> tile size of the
+    // neighbourhood-max motion (any path reaching a pixel starts within one tile).
+    float M = 0.f;
+    for (size_t i = 0; i < n; ++i) {
+        float u, v, a, b;
+        vecF(i, &u, &v);
+        vecB(i, &a, &b);
+        const float m = half * std::sqrt( std::max(u * u + v * v, a * a + b * b) );
+        if (m == m) {
+            M = std::max(M, m);
+        }
+    }
+    const int T = std::max(8, std::min(256, (int)std::ceil(M) + 1));
+    const int tw = (w + T - 1) / T, th = (h + T - 1) / T;
+    std::vector<float> tFu((size_t)tw * th, 0.f), tFv(tFu), tBu(tFu), tBv(tFu);
+    parallelFor(th, [&](int b0, int e0) {
+        for (int ty = b0; ty < e0; ++ty) {
+            for (int tx = 0; tx < tw; ++tx) {
+                float bf = -1.f, bb = -1.f, fu = 0.f, fv = 0.f, bu = 0.f, bv = 0.f;
+                for (int y = ty * T; y < std::min(h, (ty + 1) * T); ++y) {
+                    for (int x = tx * T; x < std::min(w, (tx + 1) * T); ++x) {
+                        const size_t i = (size_t)y * w + x;
+                        float u, v;
+                        vecF(i, &u, &v);
+                        if (u * u + v * v > bf) { bf = u * u + v * v; fu = u; fv = v; }
+                        vecB(i, &u, &v);
+                        if (u * u + v * v > bb) { bb = u * u + v * v; bu = u; bv = v; }
+                    }
+                }
+                const size_t t = (size_t)ty * tw + tx;
+                tFu[t] = fu; tFv[t] = fv; tBu[t] = bu; tBv[t] = bv;
+            }
+        }
+    });
+    std::vector<float> nFu(tFu.size()), nFv(tFu.size()), nBu(tFu.size()), nBv(tFu.size());
+    for (int ty = 0; ty < th; ++ty) {
+        for (int tx = 0; tx < tw; ++tx) {
+            float bf = -1.f, bb = -1.f;
+            const size_t t = (size_t)ty * tw + tx;
+            for (int j = -1; j <= 1; ++j) {
+                for (int i = -1; i <= 1; ++i) {
+                    const int xx = tx + i, yy = ty + j;
+                    if (xx < 0 || yy < 0 || xx >= tw || yy >= th) {
+                        continue;
+                    }
+                    const size_t q = (size_t)yy * tw + xx;
+                    const float mf = tFu[q] * tFu[q] + tFv[q] * tFv[q];
+                    if (mf > bf) { bf = mf; nFu[t] = tFu[q]; nFv[t] = tFv[q]; }
+                    const float mb = tBu[q] * tBu[q] + tBv[q] * tBv[q];
+                    if (mb > bb) { bb = mb; nBu[t] = tBu[q]; nBv[t] = tBv[q]; }
+                }
+            }
+        }
+    }
+
+    // Which surface is in front: the matte, or else the flows' reliability
+    // (a surface that fails the forward or backward check gets hidden or
+    // revealed: it is behind). Smoothed, 1 = front.
+    std::vector<float> D(n, 0.5f);
+    const bool haveDepth = matte || confF || confB;
+    if (haveDepth) {
+        for (size_t i = 0; i < n; ++i) {
+            if (matte) {
+                D[i] = matte[i];
+            } else {
+                D[i] = std::min( confF ? (*confF)[i] : 1.f, confB ? (*confB)[i] : 1.f );
+            }
+        }
+        const int R = std::max(1, (int)std::lround( 2.f * std::max(1.f, (float)std::max(w, h) / 1920.f) ));
+        std::vector<float> tmp(n);
+        parallelFor(h, [&](int b0, int e0) {
+            for (int y = b0; y < e0; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    float sacc = 0.f;
+                    int cnt = 0;
+                    for (int k = -R; k <= R; ++k) {
+                        const int xx = x + k;
+                        if (xx >= 0 && xx < w) { sacc += D[(size_t)y * w + xx]; ++cnt; }
+                    }
+                    tmp[(size_t)y * w + x] = sacc / cnt;
+                }
+            }
+        });
+        parallelFor(h, [&](int b0, int e0) {
+            for (int y = b0; y < e0; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    float sacc = 0.f;
+                    int cnt = 0;
+                    for (int k = -R; k <= R; ++k) {
+                        const int yy = y + k;
+                        if (yy >= 0 && yy < h) { sacc += tmp[(size_t)yy * w + x]; ++cnt; }
+                    }
+                    D[(size_t)y * w + x] = sacc / cnt;
+                }
+            }
+        });
+    }
+
+    // Enough samples for ~2 px steps along the longest path.
+    const int Ns = std::max( std::max(2, samples), std::min( 32, (int)std::ceil(2.f * M / 2.f) ) );
+    parallelFor(h, [&](int b0, int e0) {
+        std::vector<float> c2(nc), own( (size_t)Ns * nc ), acc(nc);
+        std::vector<signed char> state(Ns);   // 1 lands, 0 revealed background (keep), -1 replace
+        for (int y = b0; y < e0; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const size_t i = (size_t)y * w + x;
+                const size_t t = (size_t)std::min(th - 1, y / T) * tw + std::min(tw - 1, x / T);
+                float fu, fv, bu, bv;
+                vecF(i, &fu, &fv);
+                vecB(i, &bu, &bv);
+                const float dX = D[i];
+                // 1) the pixel's own path
+                int nLand = 0;
+                std::fill(acc.begin(), acc.end(), 0.f);
+                for (int k = 0; k < Ns; ++k) {
+                    const float tau = ( (k + 0.5f) / Ns ) * shutter - half;
+                    const bool fwdSide = tau >= 0.f;
+                    const float a = std::fabs(tau);
+                    const float dx = a * (fwdSide ? fu : bu), dy = a * (fwdSide ? fv : bv);
+                    const float sx = x - dx, sy = y - dy;
+                    float su, sv;
+                    fwdSide ? sampleF(sx, sy, &su, &sv) : sampleB(sx, sy, &su, &sv);
+                    const float ex = a * su - dx, ey = a * sv - dy;
+                    const float dl = std::sqrt(dx * dx + dy * dy);
+                    const float tol = std::max(1.f, 0.3f * dl);
+                    float* o = &own[(size_t)k * nc];
+                    sampleImage(img, w, h, nc, sx, sy, filter, o);
+                    if (ex * ex + ey * ey <= tol * tol) {
+                        state[k] = 1;
+                        for (int c = 0; c < nc; ++c) {
+                            acc[c] += o[c];
+                        }
+                        ++nLand;
+                    } else {
+                        // The source is another surface. If this pixel is in
+                        // front and moves away, the surface behind shows up:
+                        // that source is a good guess of it. Otherwise (this
+                        // pixel is the background) use its own visible samples.
+                        state[k] = ( haveDepth && dX > D[nearestIdx(sx, sy)] + 0.25f ) ? 0 : -1;
+                    }
+                }
+                for (int c = 0; c < nc; ++c) {
+                    acc[c] = nLand ? acc[c] / nLand : img[i * nc + c];
+                }
+                for (int k = 0; k < Ns; ++k) {
+                    if (state[k] < 0) {
+                        std::copy(acc.begin(), acc.end(), own.begin() + (size_t)k * nc);
+                    }
+                }
+                // 2) faster neighbouring motion passing over this pixel
+                float* o = out + i * nc;
+                std::fill(o, o + nc, 0.f);
+                for (int k = 0; k < Ns; ++k) {
+                    const float tau = ( (k + 0.5f) / Ns ) * shutter - half;
+                    const bool fwdSide = tau >= 0.f;
+                    const float a = std::fabs(tau);
+                    const float dx = a * (fwdSide ? fu : bu), dy = a * (fwdSide ? fv : bv);
+                    const float ndx = a * (fwdSide ? nFu[t] : nBu[t]), ndy = a * (fwdSide ? nFv[t] : nBv[t]);
+                    const float* src = &own[(size_t)k * nc];
+                    float w2 = 0.f;
+                    if ( (ndx - dx) * (ndx - dx) + (ndy - dy) * (ndy - dy) > 1.f ) {
+                        const float sx = x - ndx, sy = y - ndy;
+                        float su, sv;
+                        fwdSide ? sampleF(sx, sy, &su, &sv) : sampleB(sx, sy, &su, &sv);
+                        const float ex = a * su - ndx, ey = a * sv - ndy;
+                        const float nl = std::sqrt(ndx * ndx + ndy * ndy);
+                        const float tol = std::max(1.f, 0.3f * nl);
+                        if (ex * ex + ey * ey <= tol * tol) {
+                            // both surfaces are here at this time: the front one wins
+                            w2 = 0.5f + ( D[nearestIdx(sx, sy)] - dX );
+                            w2 = std::max(0.f, std::min(1.f, w2));
+                            if (w2 > 0.f) {
+                                sampleImage(img, w, h, nc, sx, sy, filter, c2.data());
+                            }
+                        }
+                    }
+                    for (int c = 0; c < nc; ++c) {
+                        o[c] += (w2 > 0.f) ? (1.f - w2) * src[c] + w2 * c2[c] : src[c];
+                    }
+                }
+                for (int c = 0; c < nc; ++c) {
+                    o[c] /= (float)Ns;
+                }
+            }
+        }
+    });
+}
+
 // ------------------------------------------------------------------ cache
 
 namespace {

@@ -29,8 +29,15 @@ NATRON_NAMESPACE_ENTER
 
 using namespace motion;
 
+enum MBMethodEnum
+{
+    eMBMethodVectorBlur = 0,
+    eMBMethodInterpolation,
+};
+
 struct MotionBlurNodePrivate
 {
+    KnobChoiceWPtr method;
     KnobIntWPtr shutterSamples;
     KnobDoubleWPtr shutterTime;
     KnobChoiceWPtr motion;
@@ -55,7 +62,11 @@ MotionBlurNode::getPluginDescription() const
 {
     return "Adds motion blur to moving footage, from the image's own motion (like NukeX's MotionBlur).\n\n"
            "Motion vectors are computed between the frame and its neighbours (optical flow), "
-           "in-between images are built along them over the shutter, and averaged.\n\n"
+           "the image is then blurred along them over the shutter.\n\n"
+           "Method: Vector Blur (default) smears the current frame along its own cleaned vectors and "
+           "decides which surface passes in front from the occlusions (or the Matte): robust on noisy, "
+           "dark or flat areas. Frame Interpolation builds in-between images from the neighbouring "
+           "frames (Kronos) and averages them: sharper occlusions, but wrong vectors show as ghosts.\n\n"
            "Shutter Samples: number of in-between images (raise it if the blur shows steps). "
            "Shutter Time: shutter length in frames (0.5 = 180 degrees), centred on the frame. "
            "Vector Detail: resolution of the vector field (proportion of the image size: 1 = one vector "
@@ -78,6 +89,17 @@ MotionBlurNode::initializeKnobs()
 {
     KnobPagePtr page = AppManager::createKnob<KnobPage>( this, tr("MotionBlur") );
     addComputeInfo(this, page);
+    {
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>( this, tr("Method") );
+        k->setName("mbMethod");
+        std::vector<ChoiceOption> o;
+        o.push_back( ChoiceOption("vectorBlur", "Vector Blur", "Blur the current frame along its own (cleaned) motion vectors. Robust, no ghosts.") );
+        o.push_back( ChoiceOption("interpolation", "Frame Interpolation", "Average in-between images built from the neighbouring frames (Kronos).") );
+        k->populateChoices(o);
+        k->setDefaultValue(0);
+        page->addKnob(k);
+        _imp->method = k;
+    }
     {
         KnobIntPtr k = AppManager::createKnob<KnobInt>( this, tr("Shutter Samples") );
         k->setName("shutterSamples");
@@ -219,6 +241,52 @@ MotionBlurNode::render(const RenderActionArgs& args)
     if ( isAborted(this) ) {
         return eStatusFailed;
     }
+
+    const int method = _imp->method.lock()->getValueAtTime(t);
+    if (method == eMBMethodVectorBlur) {
+        // cleaned vectors of the current frame + where they fail (occlusions)
+        flow::Field cF, cB;
+        std::vector<float> kF, kB;
+        if (fCN) {
+            flow::cleanFlow(*fCN, fNC.get(), &cF, &kF);
+        }
+        if (fCP) {
+            flow::cleanFlow(*fCP, fPC.get(), &cB, &kB);
+        }
+        if ( !cF.valid() && !cB.valid() ) {
+            writeFrame(cur, outImg);
+            return eStatusOK;
+        }
+        if ( isAborted(this) ) {
+            return eStatusFailed;
+        }
+        Frame res;
+        res.bounds = R;
+        res.nc = 4;
+        res.px.assign(cur.px.size(), 0.f);
+        const bool useMatte = !mCur.empty() && mCur.size() == (size_t)cur.w() * cur.h();
+        flow::motionBlurGather(cur.px.data(), cur.w(), cur.h(), 4,
+                               cF.valid() ? &cF : NULL, cB.valid() ? &cB : NULL,
+                               useMatte ? mCur.data() : NULL,
+                               kF.empty() ? NULL : &kF, kB.empty() ? NULL : &kB,
+                               (float)S, N, filter, res.px.data());
+        writeFrame(res, outImg);
+        return eStatusOK;
+    }
+
+    // Frame Interpolation: absurd vectors removed first
+    auto spikeFree = [](const flow::FieldPtr& f) -> flow::FieldPtr {
+        if (!f) {
+            return f;
+        }
+        std::shared_ptr<flow::Field> c = std::make_shared<flow::Field>();
+        flow::cleanFlow(*f, NULL, c.get());
+        return c;
+    };
+    fCN = spikeFree(fCN);
+    fNC = spikeFree(fNC);
+    fPC = spikeFree(fPC);
+    fCP = spikeFree(fCP);
 
     Frame acc;
     acc.bounds = R;

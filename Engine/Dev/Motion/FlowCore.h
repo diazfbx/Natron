@@ -92,6 +92,26 @@ void interpolate(const float* A, const float* B, int w, int h, int nComp,
 // y at time a): projection of fAB (and -fBA) with hole filling.
 void projectFlow(const Field& fAB, const Field& fBA, float a, Field* out);
 
+// Robust vectors: vectors of fAB that fail the forward / backward check
+// against fBA, or that are wild spikes compared with their neighbourhood,
+// are replaced by a smooth fill from the reliable vectors around them.
+// confidence (optional): 1 = kept, 0 = replaced.
+void cleanFlow(const Field& fAB, const Field* fBA, Field* out, std::vector<float>* confidence = nullptr);
+
+// Motion blur of one image along its own vectors (gather): fwd = motion to
+// the next frame, bwd = motion to the previous frame (either may be null:
+// the other one, reversed, is used). The shutter covers [-shutter/2,
+// +shutter/2] frames. Samples along the pixel's own path and along the
+// largest neighbouring motion (so fast objects also smear over static
+// pixels). matte (optional, w*h, 1 = foreground) decides which surface wins
+// where two motions overlap; without it they are blended.
+// confF / confB (optional, from cleanFlow): where a motion fails the
+// forward / backward check the surface gets hidden — used, without a matte,
+// to decide which surface is in front.
+void motionBlurGather(const float* img, int w, int h, int nComp, const Field* fwd, const Field* bwd,
+                      const float* matte, const std::vector<float>* confF, const std::vector<float>* confB,
+                      float shutter, int samples, FilterEnum filter, float* out);
+
 // Warp: out(x) = img(x + scale * F(x)).
 void warpByField(const float* img, int w, int h, int nComp, const Field& F, float scale,
                  FilterEnum filter, float* out);
