@@ -225,6 +225,7 @@ SmartVectorNode::render(const RenderActionArgs& args)
         vec.px.assign(cur.px.size(), 0.f);
         flow::Params fp;
         fp.detail = _imp->vectorDetail.lock()->getValueAtTime(t);
+        fp.useGpu = useGpu(this);
         fp.smoothness = _imp->strength.lock()->getValueAtTime(t) / 3.;
         double first, last;
         inputFrameRange(this, 0, &first, &last);

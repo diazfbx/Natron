@@ -24,6 +24,8 @@
 #include "Engine/KnobTypes.h"
 #include "Engine/Node.h"
 
+#include "../Gpu/GpuCompute.h"
+
 NATRON_NAMESPACE_ENTER
 
 namespace motion {
@@ -136,7 +138,8 @@ getFlow(EffectInstance* fx, int inputNb, double t0, double t1, const RenderScale
     }
     std::ostringstream key;
     key << (const void*)input.get() << ":" << input->getRenderHash() << ":" << tag << ":" << t0 << ">" << t1
-        << ":d" << params.detail << ":s" << params.smoothness << ":l" << params.local << ":" << scaleTag(scale, bounds);
+        << ":d" << params.detail << ":s" << params.smoothness << ":l" << params.local << ":g" << params.useGpu
+        << ":" << scaleTag(scale, bounds);
     flow::FieldPtr cached = flow::cacheGet( key.str() );
     if (cached) {
         return cached;
@@ -327,15 +330,32 @@ motionChoices()
 void
 addComputeInfo(EffectInstance* fx, const KnobPagePtr& page)
 {
-    KnobStringPtr k = AppManager::createKnob<KnobString>( fx, fx->tr("Local GPU") );
+    // Nuke's "Local GPU:" line and "Use GPU if available" switch (on by default).
+    KnobStringPtr k = AppManager::createKnob<KnobString>( fx, fx->tr("Local GPU:") );
     k->setName("localGPU");
     k->setAsLabel();
-    k->setDefaultValue("CPU (multi-threaded) - no GPU path in this build");
+    k->setDefaultValue( gpuc::description() );
     k->setEvaluateOnChange(false);
     k->setIsPersistent(false);
+    k->setHintToolTip( fx->tr("The GPU this machine computes on (wgpu: Vulkan / DirectX 12 / Metal). "
+                              "If none, or if a frame doesn't fit in its memory, the CPU is used.").toStdString() );
     page->addKnob(k);
+    KnobBoolPtr b = AppManager::createKnob<KnobBool>( fx, fx->tr("Use GPU if available") );
+    b->setName("useGPUIfAvailable");
+    b->setDefaultValue(true);
+    b->setHintToolTip( fx->tr("Compute the motion vectors (and the blur) on the GPU when there is one. "
+                              "Falls back to the CPU automatically; the result is the same.").toStdString() );
+    page->addKnob(b);
     KnobSeparatorPtr sep = AppManager::createKnob<KnobSeparator>( fx, std::string() );
     page->addKnob(sep);
+}
+
+bool
+useGpu(EffectInstance* fx)
+{
+    KnobIPtr k = fx->getKnobByName("useGPUIfAvailable");
+    KnobBool* b = dynamic_cast<KnobBool*>( k.get() );
+    return b ? b->getValue() : false;
 }
 
 void

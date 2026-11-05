@@ -97,8 +97,10 @@ void interpolateFrames(const Frame& A, const Frame& B, const flow::Field& fAB, c
 std::vector<ChoiceOption> filterChoices();
 std::vector<ChoiceOption> motionChoices();
 
-// Shared "Local GPU" line of the Nuke nodes: this build computes on the CPU.
+// Nuke's "Local GPU:" line + "Use GPU if available" switch (on by default).
 void addComputeInfo(EffectInstance* fx, const KnobPagePtr& page);
+// The node's "Use GPU if available" value.
+bool useGpu(EffectInstance* fx);
 
 std::string scaleTag(const RenderScale& scale, const RectI& bounds);
 

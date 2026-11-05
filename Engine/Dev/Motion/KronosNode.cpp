@@ -418,6 +418,7 @@ KronosNode::render(const RenderActionArgs& args)
     const flow::FilterEnum filter = (flow::FilterEnum)_imp->filter.lock()->getValueAtTime(t);
     flow::Params fp;
     fp.detail = _imp->vectorDetail.lock()->getValueAtTime(t);
+    fp.useGpu = useGpu(this);
     fp.local = _imp->motion.lock() ? _imp->motion.lock()->getValueAtTime(t) == 0 : false;
     fp.smoothness = isOFlow() ? _imp->strength.lock()->getValueAtTime(t)
                               : _imp->strength.lock()->getValueAtTime(t) / 3.;

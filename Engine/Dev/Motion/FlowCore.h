@@ -56,6 +56,7 @@ struct Params
     double smoothness = 0.5;   // regularisation (OFlow "Smoothness"; Kronos "Strength" / 3)
     bool local = false;        // Nuke "Motion: Local" (less smoothing, sharper motion edges)
     int maxWorkingSize = 4096; // clamp of the working resolution (longest side)
+    bool useGpu = false;       // Nuke "Use GPU if available": refinement on the GPU (falls back to the CPU)
     std::function<bool()> abort;   // polled from the calling thread only; true = stop
 };
 
@@ -110,7 +111,10 @@ void cleanFlow(const Field& fAB, const Field* fBA, Field* out, std::vector<float
 // to decide which surface is in front.
 void motionBlurGather(const float* img, int w, int h, int nComp, const Field* fwd, const Field* bwd,
                       const float* matte, const std::vector<float>* confF, const std::vector<float>* confB,
-                      float shutter, int samples, FilterEnum filter, float* out);
+                      float shutter, int samples, FilterEnum filter, float* out, bool useGpu = false);
+
+// Last GPU problem (empty if the GPU ran or wasn't asked for), for the nodes' info line.
+std::string lastGpuError();
 
 // Warp: out(x) = img(x + scale * F(x)).
 void warpByField(const float* img, int w, int h, int nComp, const Field& F, float scale,

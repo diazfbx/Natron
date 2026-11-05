@@ -9,9 +9,11 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "FlowCore.h"
+#include "FlowGpu.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <list>
 #include <map>
 #include <mutex>
@@ -60,6 +62,19 @@ parallelFor(int n, const std::function<void(int, int)>& f)
 // ------------------------------------------------------------------ helpers
 
 namespace {
+
+std::mutex gGpuErrLock;
+std::string gGpuErr;
+
+void
+setGpuError(const std::string& e)
+{
+    std::lock_guard<std::mutex> l(gGpuErrLock);
+    if ( !e.empty() && e != gGpuErr ) {
+        std::fprintf(stderr, "[Motion] GPU not used, CPU instead: %s\n", e.c_str());
+    }
+    gGpuErr = e;
+}
 
 struct Plane
 {
@@ -565,7 +580,17 @@ computeFlow(const float* A, const float* B, int w, int h, int nComp, const Param
         if (aborted(p)) {
             return false;
         }
-        if (!refineLevel(I0, I1, u, v, alpha, coarse ? 3 : 4, coarse ? 20 : 30, medianRadius, p)) {
+        const int warps = coarse ? 3 : 4, iters = coarse ? 20 : 30;
+        bool done = false;
+        if (p.useGpu && (size_t)I0.w * I0.h >= 96 * 96) {   // tiny levels: the CPU is quicker
+            std::string err;
+            done = gpu::refineLevel(I0.d, I1.d, I0.w, I0.h, u.d, v.d, alpha, warps, iters, medianRadius, p.abort, &err);
+            if (!done && aborted(p)) {
+                return false;
+            }
+            setGpuError(done ? std::string() : err);
+        }
+        if ( !done && !refineLevel(I0, I1, u, v, alpha, warps, iters, medianRadius, p) ) {
             return false;
         }
     }
@@ -1023,7 +1048,7 @@ cleanFlow(const Field& f, const Field* back, Field* out, std::vector<float>* con
 void
 motionBlurGather(const float* img, int w, int h, int nc, const Field* fwd, const Field* bwd,
                  const float* matte, const std::vector<float>* confF, const std::vector<float>* confB,
-                 float shutter, int samples, FilterEnum filter, float* out)
+                 float shutter, int samples, FilterEnum filter, float* out, bool useGpu)
 {
     const size_t n = (size_t)w * h;
     const Field* F = (fwd && fwd->valid() && fwd->w == w && fwd->h == h) ? fwd : nullptr;
@@ -1158,6 +1183,31 @@ motionBlurGather(const float* img, int w, int h, int nc, const Field* fwd, const
 
     // Enough samples for ~2 px steps along the longest path.
     const int Ns = std::max( std::max(2, samples), std::min( 32, (int)std::ceil(2.f * M / 2.f) ) );
+
+    if (useGpu && nc == 4) {
+        std::vector<float> fa(n * 2), ba(n * 2), tl( (size_t)tw * th * 4 );
+        for (size_t i = 0; i < n; ++i) {
+            vecF(i, &fa[i * 2], &fa[i * 2 + 1]);
+            vecB(i, &ba[i * 2], &ba[i * 2 + 1]);
+        }
+        for (size_t q = 0; q < nFu.size(); ++q) {
+            tl[q * 4] = nFu[q];
+            tl[q * 4 + 1] = nFv[q];
+            tl[q * 4 + 2] = nBu[q];
+            tl[q * 4 + 3] = nBv[q];
+        }
+        gpu::GatherJob j;
+        j.w = w; j.h = h; j.tw = tw; j.th = th; j.T = T; j.Ns = Ns; j.filter = (int)filter;
+        j.haveDepth = haveDepth;
+        j.shutter = shutter;
+        j.img = img; j.F = fa.data(); j.B = ba.data(); j.D = D.data(); j.tiles = tl.data();
+        std::string err;
+        if ( gpu::motionBlurGather(j, out, &err) ) {
+            setGpuError( std::string() );
+            return;
+        }
+        setGpuError(err);
+    }
     parallelFor(h, [&](int b0, int e0) {
         std::vector<float> c2(nc), own( (size_t)Ns * nc ), acc(nc);
         std::vector<signed char> state(Ns);   // 1 lands, 0 revealed background (keep), -1 replace
@@ -1244,6 +1294,13 @@ motionBlurGather(const float* img, int w, int h, int nc, const Field* fwd, const
             }
         }
     });
+}
+
+std::string
+lastGpuError()
+{
+    std::lock_guard<std::mutex> l(gGpuErrLock);
+    return gGpuErr;
 }
 
 // ------------------------------------------------------------------ cache

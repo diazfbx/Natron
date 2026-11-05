@@ -190,6 +190,7 @@ MotionBlurNode::render(const RenderActionArgs& args)
     const double S = std::max(0., _imp->shutterTime.lock()->getValueAtTime(t));
     flow::Params fp;
     fp.detail = _imp->vectorDetail.lock()->getValueAtTime(t);
+    fp.useGpu = useGpu(this);
     fp.local = _imp->motion.lock()->getValueAtTime(t) == 0;
     fp.smoothness = 0.5;
     const flow::FilterEnum filter = (flow::FilterEnum)_imp->filter.lock()->getValueAtTime(t);
@@ -269,7 +270,7 @@ MotionBlurNode::render(const RenderActionArgs& args)
                                cF.valid() ? &cF : NULL, cB.valid() ? &cB : NULL,
                                useMatte ? mCur.data() : NULL,
                                kF.empty() ? NULL : &kF, kB.empty() ? NULL : &kB,
-                               (float)S, N, filter, res.px.data());
+                               (float)S, N, filter, res.px.data(), fp.useGpu);
         writeFrame(res, outImg);
         return eStatusOK;
     }
