@@ -1231,6 +1231,10 @@ static const char* kBeautyFrag =
     "uniform vec3 u_wireColor;       // Wireframe shading line colour\n"
     "uniform float u_wireAlpha;      // Wireframe line opacity\n"
     "uniform int u_transparency;     // 1 = respect surface alpha, 0 = force opaque\n"
+    "uniform int u_linearDepth;      // 1 = depth = linear view distance (Opaque Wireframe)\n"
+    "uniform float u_depthBias;      // hidden-line pre-pass: push surfaces back (slope-scaled)\n"
+    "uniform float u_near;\n"
+    "uniform float u_far;\n"
     "uniform int u_writeNormal;      // attachment 1 (Phase 3D)\n"
     "uniform int u_writeUV;          // attachment 2 (Phase 3D)\n"
     "uniform int u_writePref;        // attachment 3 (Phase 3D)\n"
@@ -1275,6 +1279,16 @@ static const char* kBeautyFrag =
     "    return vec4(apm + b.rgb*(1.0-aa), aa + b.a*(1.0-aa));\n"
     "}\n"
     "void main() {\n"
+    "    // Depth. Opaque Wireframe (hidden lines) writes the linear view distance:\n"
+    "    // the same precision near and far, so edges no longer flicker behind\n"
+    "    // surfaces at a distance or where meshes cross (the standard 1/z depth\n"
+    "    // has almost no precision left far from the camera).\n"
+    "    if (u_linearDepth == 1) {\n"
+    "        float lin = (v_currClipPos.w - u_near) / max(u_far - u_near, 1e-6);\n"
+    "        gl_FragDepth = clamp(lin + u_depthBias * (fwidth(lin) * 1.5 + 2e-6), 0.0, 1.0);\n"
+    "    } else {\n"
+    "        gl_FragDepth = gl_FragCoord.z;\n"
+    "    }\n"
     "    // --- Wireframe: solid white edges, skip texture sampling + lighting ---\n"
     "    if (u_shadingMode == 2) {\n"
     "        out_color = vec4(u_wireColor, u_wireAlpha);\n"
@@ -3292,6 +3306,10 @@ ScanlineRender::render(const RenderActionArgs& args)
     int shadingMode = _imp->shadingMode.lock() ? _imp->shadingMode.lock()->getValue() : 0;
     const bool polygonWireEdges = _imp->wireframeEdges.lock() ? (_imp->wireframeEdges.lock()->getValue() == 0) : true;
     const bool wireframeOpaque = (shadingMode == 2) && _imp->wireframeOpaque.lock() && _imp->wireframeOpaque.lock()->getValue();
+    // Hidden lines use a linear depth (see kBeautyFrag). Only when nothing else
+    // (particles, instances, volumes) writes / tests the standard depth.
+    const bool linearDepth = wireframeOpaque && projMode == 0 && !particleData && !particleInstancer &&
+                             !volume3d && !readVdb;
     bool hasLight = false;
     float lightPos[3] = { 0, 0, 0 };
     float lightColor[3] = { 1, 1, 1 };
@@ -3487,6 +3505,10 @@ ScanlineRender::render(const RenderActionArgs& args)
         if (locBeautyNear >= 0) glUniform1f(locBeautyNear, camNear);
         const GLint locBeautyFar = glGetUniformLocation(glslBeautyProg, "u_far");
         if (locBeautyFar >= 0) glUniform1f(locBeautyFar, camFar);
+        const GLint locLinDepth = glGetUniformLocation(glslBeautyProg, "u_linearDepth");
+        if (locLinDepth >= 0) glUniform1i(locLinDepth, linearDepth ? 1 : 0);
+        const GLint locDepthBias = glGetUniformLocation(glslBeautyProg, "u_depthBias");
+        if (locDepthBias >= 0) glUniform1f(locDepthBias, 0.0f);
         const GLint locBeautyAmbient = glGetUniformLocation(glslBeautyProg, "u_ambient");
         if (locBeautyAmbient >= 0) glUniform3fv(locBeautyAmbient, 1, ambient);
         const GLint locBeautyTransp = glGetUniformLocation(glslBeautyProg, "u_transparency");
@@ -3507,7 +3529,8 @@ ScanlineRender::render(const RenderActionArgs& args)
             // depth test while edges behind other surfaces fail it.
             glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);   // all draw buffers (AOVs too)
             glEnable(GL_POLYGON_OFFSET_FILL);
-            glPolygonOffset(1.0f, 1.0f);
+            glPolygonOffset(1.0f, 2.0f);                // standard depth (linear depth: u_depthBias)
+            if (locDepthBias >= 0) glUniform1f(locDepthBias, 1.0f);
             for (size_t gi = 0; gi < geoObjects.size(); ++gi) {
                 renderGeoObjectGlsl(geoObjects[gi], glslBeautyProg,
                                     projViewMatrix, prevProjViewMatrix,
@@ -3519,6 +3542,8 @@ ScanlineRender::render(const RenderActionArgs& args)
             }
             glDisable(GL_POLYGON_OFFSET_FILL);
             glPolygonOffset(0.0f, 0.0f);
+            glUseProgram(glslBeautyProg);
+            if (locDepthBias >= 0) glUniform1f(locDepthBias, 0.0f);
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         }
         for (size_t gi = 0; gi < geoObjects.size(); ++gi) {
@@ -4994,6 +5019,20 @@ ScanlineRender::render(const RenderActionArgs& args)
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         depthBuf.resize((size_t)outW * (size_t)outH);
         glReadPixels(0, 0, outW, outH, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
+        if (linearDepth) {
+            // Opaque Wireframe wrote linear distance: back to the standard
+            // perspective depth the depth / position AOVs decode.
+            const float n = camNear, f = camFar;
+            for (size_t i = 0; i < depthBuf.size(); ++i) {
+                const float d = depthBuf[i];
+                if (d >= 1.0f - 1e-6f) {
+                    continue;   // background
+                }
+                const float zv = std::max(n, n + d * (f - n));
+                const float zNdc = (f + n) / (f - n) - (2.0f * f * n) / ((f - n) * zv);
+                depthBuf[i] = 0.5f * zNdc + 0.5f;
+            }
+        }
     }
 
     // Inverse(projection * view) for world-position reconstruction.
