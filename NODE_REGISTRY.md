@@ -1,9 +1,24 @@
 # Natron Node Registry
 
 All custom built-in nodes added to Natron beyond the original upstream codebase.
-Updated: 2026-10-29 (ReadGeo universal loader merged; ReadGeoArchive kept as hidden alias)
+Updated: 2026-11-05 (Motion nodes: MotionBlur, MotionBlur3D, Kronos, OFlow, SmartVector, VectorDistort)
 
 ---
+
+## Motion — optical flow, NukeX-style (6 nodes, 2026-11-05)
+
+Shared engine `Engine/Dev/Motion/FlowCore` (coarse-to-fine variational flow, Charbonnier terms, red-black SOR, median filtering, patch matching on the coarse levels for fast / small objects; threaded; process-wide LRU cache of flows). CPU only.
+
+| Node | Plugin ID | Status | Description |
+|------|-----------|--------|-------------|
+| **MotionBlur** | `fr.inria.built-in.MotionBlur` | Registered (2026-11-05) | Motion blur from the image's own motion (NukeX MotionBlur): Shutter Samples, Shutter Time (centred), Motion Regularized / Local, Vector Detail, Filter, Matte (source alpha / Matte input: foreground and background moved separately). |
+| **MotionBlur3D** | `fr.inria.built-in.MotionBlur3D` | Registered (2026-11-05) | Motion vectors from a 3D camera (Cam input) and depth (Z input far=0 / far=infinity, or a constant distance), shutter length / offset; to the forward / backward motion layer or R,G. VectorBlur's *UV Channels* reads them. |
+| **Kronos** | `fr.inria.built-in.Kronos` | Registered (2026-11-05) | Retime (NukeX Kronos): Input Range + Reset, Channels, Method Frame / Blend / Motion, Timing Output Speed (animatable, integrated) / Frame, Motion, Vector Detail, Strength, Filter, Shutter (samples, time, automatic), Output Result / Source / Vectors, Matte. Declares its output frame range. |
+| **OFlow** | `fr.inria.built-in.OFlow` | Registered (2026-11-05) | Same engine as Kronos with OFlow's knobs (Smoothness, Vector Detail 0.2, no Motion). |
+| **SmartVector** | `fr.inria.built-in.SmartVector` | Registered (2026-11-05) | Adds layer `smartvector_f01` (fwd_u, fwd_v, bwd_u, bwd_v: vectors to t+1 / t-1); Vector Detail, Strength; *Export Write* creates a Write to `[Project]/smartvector/<name>.####.exr`. |
+| **VectorDistort** | `fr.inria.built-in.VectorDistort` | Registered (2026-11-05) | Carries Src (made on the Reference Frame) along accumulated SmartVectors (frame-by-frame composition, cached per frame): Output Warped Src / ST Map / Vectors, Filter, Blur Size / Samples. |
+
+VectorBlur gained *UV Channels* (Auto / Vectors input / Source forward or backward motion layer).
 
 ## 3D Geometry (10 nodes)
 
