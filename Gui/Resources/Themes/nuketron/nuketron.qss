@@ -1210,3 +1210,76 @@ QWidget#ViewerPlayerBar QCheckBox {
     background: transparent;
     color: #d0d0d0;
 }
+
+/* =====================================================================
+ * 5. White texts (readability): every text in white instead of the
+ *    Preferences grey, read-only fields included. Kept: orange / yellow
+ *    accents, altered values (Preferences "altered" colour), expression
+ *    fields (dark text on their light background) and disabled widgets.
+ * ===================================================================== */
+QWidget,
+QLabel,
+QAbstractButton,
+QCheckBox,
+QRadioButton,
+QPushButton,
+QToolButton,
+QComboBox,
+QComboBox QAbstractItemView,
+QLineEdit,
+QLineEdit:read-only,
+QTextEdit,
+QTextEdit:read-only,
+QPlainTextEdit,
+QTreeView,
+QListView,
+QTableView,
+QHeaderView,
+QHeaderView::section,
+QMenuBar,
+QMenuBar::item,
+QMenu,
+QMenu::item,
+QTabBar::tab,
+QToolTip {
+    color: #ffffff;
+}
+Label[altered="false"],
+Natron--Label[altered="false"],
+ClickableLabel[dirty="false"][animation="0"],
+Natron--ClickableLabel[dirty="false"][animation="0"],
+LineEdit[animation="0"],
+Natron--LineEdit[animation="0"],
+SpinBox[animation="0"],
+Natron--SpinBox[animation="0"],
+SpinBox[dirty="true"],
+Natron--SpinBox[dirty="true"] {
+    color: #ffffff;
+}
+TabBar[mouseOverFocus="false"][clickFocus="false"],
+Natron--TabBar[mouseOverFocus="false"][clickFocus="false"] {
+    color: #ffffff;
+}
+/* still greyed out when they really are disabled */
+QLineEdit:!enabled,
+QTextEdit:!enabled,
+QPushButton:!enabled,
+QCheckBox:!enabled,
+QComboBox:!enabled,
+QMenu::item:disabled,
+ClickableLabel[readOnly="true"],
+Natron--ClickableLabel[readOnly="true"] {
+    color: #8c8c8c;
+}
+/* orange highlights keep their dark text */
+QMenuBar::item:selected,
+QMenu::item:selected,
+QPushButton:checked,
+QTreeWidget::item:selected {
+    color: #141414;
+}
+/* altered values keep the Preferences "altered" colour */
+LineEdit[altered="true"],
+Natron--LineEdit[altered="true"] {
+    color: %10;
+}
