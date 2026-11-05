@@ -180,6 +180,7 @@
 
 // Dev nodes — PostFX (consume Phase 1 / Phase 3 AOVs)
 #include "Dev/PostFX/VectorBlur.h"
+#include "Dev/Motion/MotionNodes.h"
 #include "Dev/PostFX/PatchFill.h"
 #include "Dev/PostFX/ContentFill.h"
 #include "Dev/PostFX/LensDefocus.h"
@@ -1831,6 +1832,14 @@ AppManager::loadBuiltinNodePlugins(IOPluginsMap* /*readersMap*/,
     registerBuiltInPlugin<ContentFill>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/filter_grouping_2.png"), false, false);
     registerBuiltInPlugin<LensDefocus>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/filter_grouping_2.png"), false, false);
     registerBuiltInPlugin<PMask>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/keyer_grouping_2.png"), false, false);
+
+    // Dev nodes — Motion (optical flow, NukeX-style)
+    registerBuiltInPlugin<MotionBlurNode>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/filter_grouping_2.png"), false, false);
+    registerBuiltInPlugin<MotionBlur3DNode>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/filter_grouping_2.png"), false, false);
+    registerBuiltInPlugin<KronosNode>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/time_grouping_2.png"), false, false);
+    registerBuiltInPlugin<OFlowNode>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/time_grouping_2.png"), false, false);
+    registerBuiltInPlugin<SmartVectorNode>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/transform_grouping_2.png"), false, false);
+    registerBuiltInPlugin<VectorDistortNode>(QString::fromUtf8(NATRON_IMAGES_PATH "GroupingIcons/Set2/transform_grouping_2.png"), false, false);
 }
 
 bool
