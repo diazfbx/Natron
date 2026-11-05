@@ -180,7 +180,7 @@ MotionBlur3DNode::initializeKnobs()
     {
         KnobChoicePtr k = AppManager::createKnob<KnobChoice>( this, tr("Z channel") );
         k->setName("Zchan");
-        k->setLabel("");
+        k->setLabel(std::string());
         std::vector<ChoiceOption> o(1, ChoiceOption("none", "none", ""));
         k->populateChoices(o);
         k->setAddNewLine(false);
@@ -190,7 +190,7 @@ MotionBlur3DNode::initializeKnobs()
     {
         KnobChoicePtr k = AppManager::createKnob<KnobChoice>( this, tr("Depth") );
         k->setName("depthConvention");
-        k->setLabel("");
+        k->setLabel(std::string());
         std::vector<ChoiceOption> o;
         o.push_back( ChoiceOption("far0", "far=0", "The channel holds 1/z (Nuke, ScanlineRender).") );
         o.push_back( ChoiceOption("farInf", "far=infinity", "The channel holds the distance z.") );
@@ -238,7 +238,7 @@ MotionBlur3DNode::initializeKnobs()
     {
         KnobDoublePtr k = AppManager::createKnob<KnobDouble>( this, tr("Custom offset") );
         k->setName("shuttercustomoffset");
-        k->setLabel("");
+        k->setLabel(std::string());
         k->setDefaultValue(0.);
         k->setDisplayMinimum(-1.);
         k->setDisplayMaximum(1.);
