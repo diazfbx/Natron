@@ -57,6 +57,9 @@ struct Frame
 bool fetchFrame(EffectInstance* fx, int inputNb, double time, const RenderScale& scale, ViewIdx view,
                 const RectI& bounds, int nc, Frame* out, const ImagePlaneDesc* layer = NULL);
 
+// Pixel bounds of an input's region of definition at `time` / `scale`.
+bool inputBounds(EffectInstance* fx, int inputNb, double time, const RenderScale& scale, ViewIdx view, RectI* out);
+
 // Frame range of an input (or 1..1).
 void inputFrameRange(EffectInstance* fx, int inputNb, double* first, double* last);
 

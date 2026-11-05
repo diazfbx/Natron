@@ -85,6 +85,23 @@ fetchFrame(EffectInstance* fx, int inputNb, double time, const RenderScale& scal
     return true;
 }
 
+bool
+inputBounds(EffectInstance* fx, int inputNb, double time, const RenderScale& scale, ViewIdx view, RectI* out)
+{
+    EffectInstancePtr input = fx->getInput(inputNb);
+    if (!input) {
+        return false;
+    }
+    RectD rod;
+    bool isProject = false;
+    StatusEnum st = input->getRegionOfDefinition_public(input->getRenderHash(), time, scale, view, &rod, &isProject);
+    if (st == eStatusFailed || rod.isNull()) {
+        return false;
+    }
+    *out = rod.toPixelEnclosing( scale, fx->getAspectRatio(inputNb) );
+    return !out->isNull();
+}
+
 void
 inputFrameRange(EffectInstance* fx, int inputNb, double* first, double* last)
 {
