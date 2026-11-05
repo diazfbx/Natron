@@ -89,8 +89,17 @@ inline float sampleBilinearChannel(const Image::ReadAccess& ra,
 
 } // anonymous namespace
 
+enum UVSourceEnum
+{
+    eUVAuto = 0,          // Vectors input when connected, else the Source's forward motion layer
+    eUVVectorsInput,
+    eUVForwardMotion,
+    eUVBackwardMotion,
+};
+
 struct VectorBlurPrivate
 {
+    KnobChoiceWPtr uvSource;
     KnobIntWPtr    dilateRadius;  // 0 = off; otherwise extend velocity field outward by this many pixels
     KnobDoubleWPtr scale;
     KnobDoubleWPtr offset;
@@ -134,6 +143,8 @@ VectorBlur::addAcceptedComponents(int /*inputNb*/,
 {
     comps->push_back( ImagePlaneDesc::getRGBAComponents() );
     comps->push_back( ImagePlaneDesc::getRGBComponents() );
+    comps->push_back( ImagePlaneDesc::getForwardMotionComponents() );
+    comps->push_back( ImagePlaneDesc::getBackwardMotionComponents() );
 }
 
 void
@@ -149,9 +160,47 @@ VectorBlur::isHostChannelSelectorSupported(bool*, bool*, bool*, bool*) const
 }
 
 void
+VectorBlur::getComponentsNeededAndProduced(double /*time*/, ViewIdx /*view*/,
+                                           EffectInstance::ComponentsNeededMap* comps,
+                                           double* passThroughTime, int* passThroughView, int* passThroughInput)
+{
+    (*comps)[0].push_back( ImagePlaneDesc::getRGBAComponents() );
+    KnobChoicePtr uv = _imp->uvSource.lock();
+    int mode = uv ? uv->getValue() : eUVAuto;
+    if (mode == eUVAuto) {
+        mode = getInput(1) ? eUVVectorsInput : eUVForwardMotion;
+    }
+    if (mode == eUVForwardMotion) {
+        (*comps)[0].push_back( ImagePlaneDesc::getForwardMotionComponents() );
+    } else if (mode == eUVBackwardMotion) {
+        (*comps)[0].push_back( ImagePlaneDesc::getBackwardMotionComponents() );
+    } else {
+        (*comps)[1].push_back( ImagePlaneDesc::getRGBAComponents() );
+    }
+    (*comps)[-1].push_back( ImagePlaneDesc::getRGBAComponents() );
+    *passThroughTime = 0;
+    *passThroughView = 0;
+    *passThroughInput = 0;
+}
+
+void
 VectorBlur::initializeKnobs()
 {
     KnobPagePtr page = AppManager::createKnob<KnobPage>(this, tr("Controls"));
+
+    {
+        KnobChoicePtr k = AppManager::createKnob<KnobChoice>(this, tr("UV Channels"));
+        k->setName("uvChannels");
+        std::vector<ChoiceOption> opts;
+        opts.push_back(ChoiceOption("auto", "Auto", "Vectors input (R, G) when connected, else the Source's forward motion layer."));
+        opts.push_back(ChoiceOption("input", "Vectors input (R, G)", "R = x motion, G = y motion of the Vectors input."));
+        opts.push_back(ChoiceOption("forward", "Source: motion (forward)", "Forward motion layer of the Source (MotionBlur3D, renders)."));
+        opts.push_back(ChoiceOption("backward", "Source: motion (backward)", "Backward motion layer of the Source."));
+        k->populateChoices(opts);
+        k->setDefaultValue(eUVAuto);
+        k->setHintToolTip(tr("Where the motion vectors come from."));
+        page->addKnob(k); _imp->uvSource = k;
+    }
 
     {
         KnobDoublePtr k = AppManager::createKnob<KnobDouble>(this, tr("Scale"));
@@ -288,11 +337,24 @@ VectorBlur::render(const RenderActionArgs& args)
     // User shuffles ScanlineRender's Velocity AOV into RGB upstream. Same
     // "data via a shuffled secondary input" pattern as PMask (Position pass).
     RectI velRoi;
-    ImagePtr velImg = getInput(1)
-                    ? getImage(1, args.time, args.mappedScale, args.view,
-                               NULL, NULL, false, false,
-                               eStorageModeRAM, 0, &velRoi)
-                    : ImagePtr();
+    int uvMode = _imp->uvSource.lock() ? _imp->uvSource.lock()->getValue() : eUVAuto;
+    if (uvMode == eUVAuto) {
+        uvMode = getInput(1) ? eUVVectorsInput : eUVForwardMotion;
+    }
+    ImagePtr velImg;
+    if (uvMode == eUVVectorsInput) {
+        velImg = getInput(1)
+               ? getImage(1, args.time, args.mappedScale, args.view,
+                          NULL, NULL, false, false,
+                          eStorageModeRAM, 0, &velRoi)
+               : ImagePtr();
+    } else {
+        const ImagePlaneDesc& plane = uvMode == eUVForwardMotion ? ImagePlaneDesc::getForwardMotionComponents()
+                                                                 : ImagePlaneDesc::getBackwardMotionComponents();
+        velImg = getImage(0, args.time, args.mappedScale, args.view,
+                          NULL, &plane, false, false,
+                          eStorageModeRAM, 0, &velRoi);
+    }
     // If no velocity input wired: passthrough.
     const bool haveVelocity = (velImg != nullptr);
 

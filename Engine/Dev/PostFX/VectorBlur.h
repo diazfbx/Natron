@@ -98,6 +98,17 @@ public:
     virtual bool getCreateChannelSelectorKnob() const OVERRIDE FINAL WARN_UNUSED_RETURN { return false; }
     virtual bool isHostChannelSelectorSupported(bool*, bool*, bool*, bool*) const OVERRIDE WARN_UNUSED_RETURN;
 
+    // Vectors from the Vectors input (R, G) or from a motion layer of the
+    // Source (MotionBlur3D, renders): "UV Channels".
+    virtual bool isMultiPlanar() const OVERRIDE FINAL WARN_UNUSED_RETURN { return true; }
+    virtual PassThroughEnum isPassThroughForNonRenderedPlanes() const OVERRIDE FINAL WARN_UNUSED_RETURN
+    { return ePassThroughPassThroughNonRenderedPlanes; }
+    virtual void getComponentsNeededAndProduced(double time, ViewIdx view,
+                                                EffectInstance::ComponentsNeededMap* comps,
+                                                double* passThroughTime,
+                                                int* passThroughView,
+                                                int* passThroughInput) OVERRIDE FINAL;
+
 private:
 
     virtual void initializeKnobs() OVERRIDE FINAL;
